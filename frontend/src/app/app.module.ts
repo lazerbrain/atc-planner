@@ -31,6 +31,7 @@ import { OptimizationStatisticsDialogComponent } from './features/schedule/optim
 import { ScheduleLegendComponent } from './features/schedule/schedule-legend/schedule-legend.component';
 import { DrawerService } from './shared/services/drawer.service';
 import { MessageDialogComponent } from './shared/components/message-dialog/message-dialog.component';
+import { OptimizationHistoryDialogComponent } from './features/schedule/optimization-history-dialog/optimization-history-dialog.component';
 
 export const drawerRoutes = [
   {
@@ -57,6 +58,7 @@ export const drawerRoutes = [
     OptimizationStatisticsDialogComponent,
     ScheduleLegendComponent,
     MessageDialogComponent,
+    OptimizationHistoryDialogComponent,
   ],
   imports: [
     BrowserModule,

@@ -1,0 +1,117 @@
+<div class="history-dialog">
+  <div class="history-header">
+    <h3>Istorija optimizacija ({{ history.length }} pokretanja)</h3>
+  </div>
+
+  <div class="history-table-container">
+    <kendo-grid
+      [data]="history"
+      [sortable]="true"
+      [resizable]="true"
+      [height]="400"
+      (cellClick)="onSelectRun($event)"
+    >
+      <!-- Kolona: ID + Ikonice -->
+      <kendo-grid-column field="id" title="#" [width]="80">
+        <ng-template kendoGridCellTemplate let-dataItem>
+          <div class="id-cell">
+            <span>{{ dataItem.id }}</span>
+            <kendo-svg-icon
+              *ngIf="isBestRun(dataItem)"
+              [icon]="starIcon"
+              class="best-icon"
+              title="Najbolja optimizacija"
+            ></kendo-svg-icon>
+            <kendo-svg-icon
+              *ngIf="isCurrentRun(dataItem)"
+              [icon]="checkIcon"
+              class="current-icon"
+              title="Trenutno prikazana"
+            ></kendo-svg-icon>
+          </div>
+        </ng-template>
+      </kendo-grid-column>
+
+      <!-- Kolona: Vreme kreiranja -->
+      <kendo-grid-column field="createdAt" title="Vreme" [width]="150">
+        <ng-template kendoGridCellTemplate let-dataItem>
+          {{ dataItem.createdAt | date : "dd.MM.yyyy HH:mm" }}
+        </ng-template>
+      </kendo-grid-column>
+
+      <!-- Kolona: Opis -->
+      <kendo-grid-column field="description" title="Opis" [width]="280">
+      </kendo-grid-column>
+
+      <!-- Kolona: Status -->
+      <kendo-grid-column field="solverStatus" title="Status" [width]="100">
+        <ng-template kendoGridCellTemplate let-dataItem>
+          <span [ngClass]="getStatusClass(dataItem.solverStatus)">
+            {{ dataItem.solverStatus }}
+          </span>
+        </ng-template>
+      </kendo-grid-column>
+
+      <!-- Kolona: Success Rate -->
+      <kendo-grid-column
+        field="statistics.successRate"
+        title="Success Rate"
+        [width]="120"
+      >
+        <ng-template kendoGridCellTemplate let-dataItem>
+          <span class="success-rate">
+            {{ dataItem.statistics.successRate.toFixed(1) }}%
+          </span>
+        </ng-template>
+      </kendo-grid-column>
+
+      <!-- Kolona: Slotovi sa manjkom -->
+      <kendo-grid-column
+        field="statistics.slotsWithShortage"
+        title="Manjak"
+        [width]="80"
+      >
+        <ng-template kendoGridCellTemplate let-dataItem>
+          <span
+            [class.shortage-value]="dataItem.statistics.slotsWithShortage > 0"
+          >
+            {{ dataItem.statistics.slotsWithShortage }}
+          </span>
+        </ng-template>
+      </kendo-grid-column>
+
+      <!-- Kolona: Objective Value -->
+      <kendo-grid-column field="objectiveValue" title="Objective" [width]="110">
+        <ng-template kendoGridCellTemplate let-dataItem>
+          {{ dataItem.objectiveValue.toFixed(2) }}
+        </ng-template>
+      </kendo-grid-column>
+
+      <!-- Kolona: Trajanje -->
+      <kendo-grid-column field="solvingTime" title="Trajanje" [width]="100">
+        <ng-template kendoGridCellTemplate let-dataItem>
+          {{ formatDuration(dataItem.solvingTime) }}
+        </ng-template>
+      </kendo-grid-column>
+    </kendo-grid>
+  </div>
+
+  <div class="history-footer">
+    <div class="legend">
+      <span class="legend-item">
+        <kendo-svg-icon [icon]="starIcon" class="best-icon"></kendo-svg-icon>
+        Najbolja
+      </span>
+      <span class="legend-item">
+        <kendo-svg-icon
+          [icon]="checkIcon"
+          class="current-icon"
+        ></kendo-svg-icon>
+        Trenutna
+      </span>
+    </div>
+    <div class="buttons">
+      <button kendoButton (click)="onClose()">Zatvori</button>
+    </div>
+  </div>
+</div>

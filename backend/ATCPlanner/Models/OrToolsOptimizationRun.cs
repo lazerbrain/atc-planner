@@ -3,7 +3,7 @@
     public class OrToolsOptimizationRun
     {
         public int Id { get; set; } 
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         public OptimizationRequest Request { get; set; } = new();
         public OptimizationResponse Response { get; set; } = new();
         public string? Description {  get; set; }

@@ -40,6 +40,7 @@ import { DrawerService } from 'src/app/shared/services/drawer.service';
 import { MessageDialogComponent } from 'src/app/shared/components/message-dialog/message-dialog.component';
 import { OrtoolsSessionService } from 'src/app/services/ortools-session.service';
 import { OrToolsNavigationInfo } from 'src/app/models/ortools-session.model';
+import { OptimizationHistoryDialogComponent } from './optimization-history-dialog/optimization-history-dialog.component';
 
 @Component({
   selector: 'app-schedule',
@@ -679,10 +680,92 @@ export class ScheduleComponent {
       .subscribe({
         next: (response) => {
           console.log('Optimization history:', response);
-          // TODO: Implementirati HistoryDialogComponent
+
+          // pronadji ID najbolje optimizacije
+          const bestRun = response.history
+            .filter(
+              (r) =>
+                r.solverStatus === 'Optimal' || r.solverStatus === 'Feasible'
+            )
+            .sort((a, b) => {
+              // Sortiraj po success rate, pa po manjku, pa po objective
+              if (b.statistics.successRate !== a.statistics.successRate) {
+                return b.statistics.successRate - a.statistics.successRate;
+              }
+              if (
+                a.statistics.slotsWithShortage !==
+                b.statistics.slotsWithShortage
+              ) {
+                return (
+                  a.statistics.slotsWithShortage -
+                  b.statistics.slotsWithShortage
+                );
+              }
+              return a.objectiveValue - b.objectiveValue;
+            })[0];
+
+          const dialog = this.dialogService.open({
+            title: 'Istorija optimizacija',
+            content: OptimizationHistoryDialogComponent,
+            width: 1100,
+            height: 650,
+            appendTo: this.dialogContainerRef,
+          });
+
+          const dialogContent = dialog.content
+            .instance as OptimizationHistoryDialogComponent;
+          dialogContent.history = response.history;
+          dialogContent.currentRunId = this.navigationInfo?.currentRunNumber;
+          dialogContent.bestRunId = bestRun?.id;
+
+          dialog.result.subscribe((result: any) => {
+            if (result?.action === 'select' && result.runId) {
+              this.loadOptimizationRun(result.runId);
+            }
+          });
         },
         error: (error) => {
           console.error('Error getting optimization history:', error);
+        },
+      });
+  }
+
+  private loadOptimizationRun(runId: number) {
+    if (!this.currentSessionId) {
+      console.error('No current session ID');
+      return;
+    }
+
+    console.log('Loading optimization run:', runId);
+    this.loading$.next(true);
+
+    this.orToolsSessionService
+      .loadOptimizationRun(this.currentSessionId, runId)
+      .pipe(finalize(() => this.loading$.next(false)))
+      .subscribe({
+        next: (response) => {
+          console.log('Loaded optimization run:', runId, response);
+
+          // Procesuj raspored
+          this.processOptimizedSchedule(response);
+          this.optimizationStatistics = response.statistics;
+          this.slotShortages = this.formatSlotShortages(response.slotShortages);
+
+          // Azuriraj navigation info
+          this.navigationInfo = response.navigationInfo;
+          this.orToolsSessionService.updateNavigationInfo(
+            response.navigationInfo
+          );
+
+          console.log('Successfully loaded run:', runId);
+          console.log('Updated navigation info:', this.navigationInfo);
+        },
+        error: (error) => {
+          console.error('Error loading optimization run:', error);
+          this.showDialog(
+            `Greška pri učitavanju optimizacije #${runId}`,
+            'error'
+          );
         },
       });
   }

@@ -1,0 +1,129 @@
+.history-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+}
+
+.history-header {
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 20px;
+}
+
+.history-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.history-table-container {
+  flex: 1;
+  overflow: auto;
+}
+
+.history-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20px;
+  border-top: 2px solid #e0e0e0;
+  margin-top: 20px;
+}
+
+.legend {
+  display: flex;
+  gap: 25px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.id-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.best-icon {
+  color: #ffc107;
+  font-size: 18px;
+}
+
+.current-icon {
+  color: #28a745;
+  font-size: 18px;
+}
+
+.status-optimal {
+  color: #28a745;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #d4edda;
+  border-radius: 4px;
+}
+
+.status-feasible {
+  color: #17a2b8;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #d1ecf1;
+  border-radius: 4px;
+}
+
+.status-infeasible {
+  color: #dc3545;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #f8d7da;
+  border-radius: 4px;
+}
+
+.status-unknown {
+  color: #6c757d;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #e2e3e5;
+  border-radius: 4px;
+}
+
+.success-rate {
+  font-weight: 600;
+  color: #28a745;
+}
+
+.shortage-value {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* Stilovi za grid */
+::ng-deep .k-grid tbody tr {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+::ng-deep .k-grid tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+::ng-deep .k-grid td {
+  padding: 12px 8px;
+}
+
+::ng-deep .k-grid th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+  padding: 12px 8px;
+}

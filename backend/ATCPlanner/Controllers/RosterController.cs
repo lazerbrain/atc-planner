@@ -404,6 +404,7 @@ namespace ATCPlanner.Controllers
                 // Kreiraj OR-Tools run objekat
                 var orToolsRun = new OrToolsOptimizationRun
                 {
+                    CreatedAt = DateTime.Now,
                     Request = request.OptimizationRequest,
                     Response = optimizationResponse,
                     Parameters = new OrToolsParameters
@@ -553,7 +554,7 @@ namespace ATCPlanner.Controllers
                     History = history.Select(run => new
                     {
                         run.Id,
-                        run.CreatedAt,
+                        CreatedAt = run.CreatedAt.ToString("o"), // ISO 8601 format
                         run.Description,
                         run.SolverStatus,
                         run.ObjectiveValue,
@@ -629,6 +630,53 @@ namespace ATCPlanner.Controllers
             {
                 _logger.LogError(ex, "Error getting best run for session: {SessionId}", sessionId);
                 return StatusCode(500, "An error occurred while getting best run");
+            }
+        }
+
+        [HttpPost("load-run/{sessionId}/{runId}")]
+        public IActionResult LoadOptimizationRun(string sessionId, int runId)
+        {
+            try
+            {
+                var session = _orToolsSessionService.GetSession(sessionId);
+                if (session == null)
+                {
+                    _logger.LogWarning($"Session {sessionId} not found");
+                    return NotFound("Session not found");
+                }
+
+                var run = session.OptimizationRuns.FirstOrDefault(r => r.Id == runId);
+                if (run == null)
+                {
+                    _logger.LogWarning($"Run {runId} not found in session {sessionId}");
+                    return NotFound($"Run {runId} not found");
+                }
+
+                // postavi CurrentRunIndex na izabranu optimizaciju
+                var runIndex = session.OptimizationRuns.IndexOf(run);
+                session.CurrentRunIndex = runIndex;
+
+                _logger.LogInformation($"Loaded run {runId} (index {runIndex}) in session {sessionId}");
+
+                var navigationInfo = _orToolsSessionService.GetNavigationInfo(sessionId);
+
+                return Ok(new
+                {
+                    run.Response.OptimizedResults,
+                    run.Response.NonOptimizedResults,
+                    run.Response.AllResults,
+                    run.Response.InitialAssignments,
+                    run.Response.ConfigurationLabels,
+                    run.Response.SlotShortages,
+                    run.Response.Statistics,
+                    SessionId = sessionId,
+                    NavigationInfo = navigationInfo
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error loading run {runId} in session {sessionId}");
+                return StatusCode(500, "An error occurred while loading optimization run");
             }
         }
     }
