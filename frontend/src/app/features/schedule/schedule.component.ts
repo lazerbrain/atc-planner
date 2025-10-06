@@ -646,14 +646,20 @@ export class ScheduleComponent {
           this.optimizationStatistics = response.statistics;
           this.slotShortages = this.formatSlotShortages(response.slotShortages);
 
-          this.orToolsSessionService
-            .getNavigationInfo(this.currentSessionId!)
-            .subscribe((navInfo) => {
-              this.navigationInfo = navInfo;
-              this.orToolsSessionService.updateNavigationInfo(navInfo);
-            });
-
-          console.log('Switched to best run:', response.runInfo);
+          if (response.navigationInfo) {
+            this.navigationInfo = response.navigationInfo;
+            this.orToolsSessionService.updateNavigationInfo(
+              response.navigationInfo
+            );
+          } else {
+            this.orToolsSessionService
+              .getNavigationInfo(this.currentSessionId!)
+              .subscribe((navInfo) => {
+                this.navigationInfo = navInfo;
+                this.orToolsSessionService.updateNavigationInfo(navInfo);
+              });
+            console.log('Switched to best run:', response.runInfo);
+          }
         },
         error: (error) => {
           console.error('Error switching to best run:', error);

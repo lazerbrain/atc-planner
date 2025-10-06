@@ -581,9 +581,24 @@ namespace ATCPlanner.Controllers
         {
             try
             {
-                var bestRun = _orToolsSessionService.GetBestRun(sessionId);
+                var session = _orToolsSessionService.GetSession(sessionId);
+                if (session == null)
+                {
+                    return NotFound("Session not found");
+                }
+
+                var bestRun = session.GetBestRun();
                 if (bestRun != null)
                 {
+                    var bestRunIndex = session.OptimizationRuns.IndexOf(bestRun);
+                    if (bestRunIndex >= 0)
+                    {
+                        session.CurrentRunIndex = bestRunIndex;
+                        _logger.LogInformation($"Switched to best run (index {bestRunIndex}) in session {sessionId}");
+                    }
+
+                    var navigationInfo = _orToolsSessionService.GetNavigationInfo(sessionId);
+
                     return Ok(new
                     {
                         bestRun.Response.OptimizedResults,
@@ -594,6 +609,7 @@ namespace ATCPlanner.Controllers
                         bestRun.Response.SlotShortages,
                         bestRun.Response.Statistics,
                         SessionId = sessionId,
+                        NavigationInfo = navigationInfo,
                         RunInfo = new
                         {
                             bestRun.Id,

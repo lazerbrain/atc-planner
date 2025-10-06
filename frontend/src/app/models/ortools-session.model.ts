@@ -71,6 +71,7 @@ export interface BestRunResponse {
   slotShortages: { [key: string]: number };
   statistics: OptimizationStatistics;
   sessionId: string;
+  navigationInfo?: OrToolsNavigationInfo;
   runInfo: {
     id: number;
     createdAt: string;
