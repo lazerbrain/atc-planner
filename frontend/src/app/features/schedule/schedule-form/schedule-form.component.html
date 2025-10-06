@@ -1,0 +1,32 @@
+<div class="schedule-form-container">
+  <form [formGroup]="scheduleForm" (ngSubmit)="onSubmit()" class="k-form">
+    <div class="k-form-field">
+      <kendo-datepicker
+        formControlName="date"
+        placeholder="Izaberite datum"
+        format="dd.MM.yyyy"
+      ></kendo-datepicker>
+    </div>
+    <div class="k-form-field">
+      <kendo-dropdownlist
+        formControlName="shift"
+        [data]="shifts"
+        textField="text"
+        valueField="value"
+        [valuePrimitive]="false"
+        compareWith="compareShifts"
+        placeholder="Izaberite smenu"
+      ></kendo-dropdownlist>
+    </div>
+    <div class="k-form-field">
+      <button
+        kendoButton
+        [primary]="true"
+        type="submit"
+        [disabled]="!scheduleForm.valid"
+      >
+        Učitaj raspored
+      </button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,96 @@
+<form (ngSubmit)="onSubmit()" class="k-form">
+  <div class="k-form-field">
+    <label class="k-label" for="maxExecutionTime"
+      >Maksimalno vreme izvršenja:</label
+    >
+    <kendo-numerictextbox
+      [(value)]="params.maxExecutionTime"
+      [min]="1"
+      [max]="3600"
+      [format]="'#'"
+      [spinners]="true"
+      [autoCorrect]="true"
+      id="maxExecutionTime"
+    ></kendo-numerictextbox>
+  </div>
+
+  <div class="k-form-field checkbox-field">
+    <label class="k-label" for="useHeuristic">Koristi heuristiku</label>
+    <kendo-checkbox
+      id="useHeuristic"
+      [(ngModel)]="params.useHeuristic"
+      [ngModelOptions]="{ standalone: true }"
+      [disabled]="true"
+    >
+    </kendo-checkbox>
+  </div>
+
+  <div class="k-form-field checkbox-field">
+    <label class="k-label" for="useSimulatedAnnealing"
+      >Koristi simulirano kaljenje</label
+    >
+    <kendo-checkbox
+      id="useSimulatedAnnealing"
+      [(ngModel)]="params.useSimulatedAnnealing"
+      [ngModelOptions]="{ standalone: true }"
+      [disabled]="true"
+    >
+    </kendo-checkbox>
+    <small class="text-muted" *ngIf="!params.useSimulatedAnnealing"
+      >Ako nije označeno, koristiće se OR-Tools</small
+    >
+  </div>
+
+  <div class="k-form-field">
+    <label class="k-label" for="stopAfterOptimalSolutions"
+      >Prekini optimizaciju posle (opt. rešenja):</label
+    >
+    <kendo-numerictextbox
+      [(value)]="params.stopAfterOptimalSolutions"
+      [min]="0"
+      [format]="'#'"
+      [spinners]="true"
+      [autoCorrect]="true"
+      id="stopAfterOptimalSolutions"
+      [disabled]="true"
+    ></kendo-numerictextbox>
+  </div>
+
+  <div class="k-form-field">
+    <label class="k-label" for="stopAfterZeroShortageSolutions"
+      >Prekini optimizaciju posle (rešenja bez manjka):</label
+    >
+    <kendo-numerictextbox
+      [(value)]="params.stopAfterZeroShortageSolutions"
+      [min]="0"
+      [format]="'#'"
+      [spinners]="true"
+      [autoCorrect]="true"
+      id="stopAfterZeroShortageSolutions"
+      [disabled]="true"
+    ></kendo-numerictextbox>
+  </div>
+
+  <div class="k-form-field checkbox-field">
+    <label class="k-label" for="useManualAssignments"
+      >Koristi manuelne dodele</label
+    >
+    <kendo-checkbox
+      id="useManualAssignments"
+      [(ngModel)]="params.useManualAssignments"
+      [ngModelOptions]="{ standalone: true }"
+    >
+    </kendo-checkbox>
+    <small class="text-muted" *ngIf="params.useManualAssignments"
+      >Optimizacija će poštovati postojeće manuelne dodele</small
+    >
+    <small class="text-muted" *ngIf="!params.useManualAssignments"
+      >Optimizacija će ignorisati postojeće manuelne dodele</small
+    >
+  </div>
+
+  <div class="k-form-buttons">
+    <button kendoButton [primary]="true" type="submit">Optimizuj</button>
+    <button kendoButton type="button" (click)="onCancel()">Odustani</button>
+  </div>
+</form>

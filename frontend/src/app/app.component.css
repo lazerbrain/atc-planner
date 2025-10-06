@@ -1,0 +1,80 @@
+:host {
+  display: block;
+  height: 100vh;
+}
+
+kendo-drawer-container {
+  height: 100%;
+}
+
+.k-drawer-content {
+  padding: 0;
+}
+
+nav {
+  padding: 10px 20px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+}
+
+.schedule-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 4px 12px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.schedule-date {
+  color: #215ca0;
+  font-weight: 500;
+}
+
+.schedule-separator {
+  color: #999;
+}
+
+.schedule-shift {
+  color: #2d7d46;
+  font-weight: 500;
+}
+
+.content-container {
+  padding: 20px;
+  height: calc(100% - 65px);
+}
+
+kendo-avatar {
+  margin-left: 20px;
+}
+
+.k-icon {
+  font-size: 20px;
+}
+
+.custom-toolbar {
+  width: 100%;
+  background-color: #f6f6f6;
+  line-height: 10px;
+  border-bottom: inset;
+  border-bottom-width: 1px;
+  padding: 3px 8px;
+  color: #656565;
+}
+
+kendo-appbar-section {
+  display: flex;
+  align-items: center;
+}
+
+button[kendoButton] {
+  margin-right: 16px;
+}

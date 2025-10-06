@@ -1,0 +1,51 @@
+.dialog-container {
+  padding: 24px;
+}
+
+.message-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error {
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+}
+
+.success {
+  background-color: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.warning {
+  background-color: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+
+.info {
+  background-color: #dbeafe;
+  border: 1px solid #93c5fd;
+}

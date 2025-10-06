@@ -1,0 +1,222 @@
+<div class="schedule-page">
+  <app-schedule-form
+    (formSubmit)="loadSchedule($event)"
+    *ngIf="initialSchedule.length === 0"
+  ></app-schedule-form>
+
+  <div class="button-toolbar">
+    <!-- Leva strana -->
+    <div class="button-group">
+      <button
+        kendoButton
+        *ngIf="showTabs"
+        (click)="resetSelection()"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-base"
+      >
+        <kendo-svg-icon [icon]="icons.arrowLeft"></kendo-svg-icon>
+        Povratak na izbor
+      </button>
+    </div>
+
+    <!-- Srednja sekcija - navigacija između optimizacija -->
+    <div
+      class="button-group navigation-group"
+      *ngIf="hasOptimizedSchedule && hasMultipleOptimizations"
+    >
+      <button
+        kendoButton
+        (click)="navigateToPrevious()"
+        [disabled]="!canNavigatePrevious"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-secondary"
+        title="Prethodna optimizacija"
+      >
+        <kendo-svg-icon [icon]="icons.chevronLeft"></kendo-svg-icon>
+      </button>
+
+      <div class="optimization-info">
+        <span class="optimization-counter">{{ currentOptimizationInfo }}</span>
+        <small class="optimization-description">{{
+          currentOptimizationDescription
+        }}</small>
+      </div>
+
+      <button
+        kendoButton
+        (click)="navigateToNext()"
+        [disabled]="!canNavigateNext"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-secondary"
+        title="Sledeća optimizacija"
+      >
+        <kendo-svg-icon [icon]="icons.chevronRight"></kendo-svg-icon>
+      </button>
+    </div>
+
+    <!-- Desna strana -->
+    <div class="button-group">
+      <!-- Dugme za ponovnu optimizaciju -->
+      <button
+        kendoButton
+        *ngIf="showTabs && hasOptimizedSchedule"
+        (click)="reoptimize()"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-info"
+        [disabled]="(optimizing$ | async) || false"
+        title="Ponovi optimizaciju sa istim parametrima"
+      >
+        <kendo-svg-icon [icon]="icons.play"></kendo-svg-icon>
+        Ponovi optimizaciju
+      </button>
+
+      <!-- Osnovni dugme za optimizaciju -->
+      <button
+        kendoButton
+        *ngIf="showTabs"
+        (click)="openOptimizationDialog()"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-primary"
+        [disabled]="!showOptimizeButton || (optimizing$ | async) || false"
+      >
+        <kendo-svg-icon [icon]="icons.gear"></kendo-svg-icon>
+        {{ hasOptimizedSchedule ? "Nova optimizacija" : "Optimizuj raspored" }}
+      </button>
+
+      <!-- Dugme za najbolju optimizaciju -->
+      <button
+        kendoButton
+        *ngIf="hasOptimizedSchedule && hasMultipleOptimizations"
+        (click)="switchToBestRun()"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-success"
+        title="Prebaci na najbolju optimizaciju"
+      >
+        <kendo-svg-icon [icon]="icons.star"></kendo-svg-icon>
+        Najbolja
+      </button>
+
+      <!-- Dugme za istoriju optimizacija -->
+      <button
+        kendoButton
+        *ngIf="hasOptimizedSchedule && hasMultipleOptimizations"
+        (click)="showOptimizationHistory()"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-secondary"
+        title="Prikaži istoriju optimizacija"
+      >
+        <kendo-svg-icon [icon]="icons.clock"></kendo-svg-icon>
+        Istorija
+      </button>
+
+      <!-- Dugme za statistike -->
+      <button
+        *ngIf="hasOptimizedSchedule"
+        kendoButton
+        (click)="showOptimizationStatistics()"
+        class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-secondary"
+      >
+        <kendo-svg-icon [icon]="icons.chartColumn"></kendo-svg-icon>
+        Statistika optimizacije
+      </button>
+    </div>
+  </div>
+
+  <!-- Informacijski banner za trenutnu optimizaciju -->
+  <div
+    class="optimization-banner"
+    *ngIf="hasOptimizedSchedule && navigationInfo"
+  >
+    <div class="banner-content">
+      <div class="banner-left">
+        <span class="banner-label">Trenutna optimizacija:</span>
+        <span class="banner-value">{{
+          navigationInfo.currentRunDescription
+        }}</span>
+      </div>
+      <div class="banner-right">
+        <span
+          class="banner-status"
+          [ngClass]="'status-' + navigationInfo.solverStatus.toLowerCase()"
+        >
+          {{ navigationInfo.solverStatus }}
+        </span>
+        <span class="banner-success-rate"
+          >{{ navigationInfo.successRate.toFixed(1) }}%</span
+        >
+        <span class="banner-timestamp">{{
+          navigationInfo.currentRunTimestamp | date : "short"
+        }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="debug-info"
+    *ngIf="hasOptimizedSchedule"
+    style="
+      background: #f0f0f0;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    "
+  >
+    <strong>Debug informacije:</strong><br />
+    hasOptimizedSchedule: {{ hasOptimizedSchedule }}<br />
+    hasMultipleOptimizations: {{ hasMultipleOptimizations }}<br />
+    navigationInfo?.totalRuns: {{ navigationInfo?.totalRuns }}<br />
+    currentSessionId: {{ currentSessionId }}<br />
+    canNavigatePrevious: {{ canNavigatePrevious }}<br />
+    canNavigateNext: {{ canNavigateNext }}
+  </div>
+
+  <div class="grid-container">
+    <div class="optimize-button-container">
+      <kendo-tabstrip *ngIf="showTabs" (tabSelect)="onTabSelect($event)">
+        <kendo-tabstrip-tab
+          title="Inicijalni raspored"
+          [selected]="selectedTab === 0"
+        >
+          <ng-template kendoTabContent>
+            <app-schedule-grid
+              [data]="selectedTab === 0 ? initialSchedule : optimizedSchedule"
+              [timeSlots]="timeSlots"
+              (selectedEmployeesChange)="onSelectedEmployeesChange($event)"
+            ></app-schedule-grid>
+          </ng-template>
+        </kendo-tabstrip-tab>
+        <kendo-tabstrip-tab
+          title="Optimizovani raspored"
+          [selected]="selectedTab === 1"
+          [disabled]="optimizedSchedule.length === 0"
+        >
+          <ng-template kendoTabContent>
+            <app-schedule-grid
+              [data]="optimizedSchedule"
+              [timeSlots]="timeSlots"
+              [slotShortages]="slotShortages"
+            ></app-schedule-grid>
+            <app-schedule-legend></app-schedule-legend>
+          </ng-template>
+        </kendo-tabstrip-tab>
+      </kendo-tabstrip>
+    </div>
+
+    <ng-container #dialogContainer></ng-container>
+  </div>
+
+  <div *ngIf="loading$ | async" class="loading-overlay">
+    <div class="loading-content">
+      <kendo-loader
+        size="large"
+        themeColor="primary"
+        type="infinite-spinner"
+      ></kendo-loader>
+      <span class="loading-text">Učitavanje rasporeda...</span>
+    </div>
+  </div>
+
+  <div *ngIf="optimizing$ | async" class="loading-overlay">
+    <div class="loading-content">
+      <kendo-loader
+        size="large"
+        themeColor="primary"
+        type="infinite-spinner"
+      ></kendo-loader>
+      <span class="loading-text">Optimizacija rasporeda u toku...</span>
+    </div>
+  </div>
+</div>

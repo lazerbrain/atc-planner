@@ -1,0 +1,49 @@
+<kendo-appbar class="custom-toolbar">
+  <kendo-appbar-section>
+    <button
+      kendoButton
+      [svgIcon]="menuSvg"
+      fillMode="flat"
+      (click)="drawer.toggle()"
+    ></button>
+  </kendo-appbar-section>
+
+  <kendo-appbar-section>
+    <h1 class="title">
+      {{ title }} - {{ selected }}
+      <span
+        *ngIf="selected === 'Raspored' && currentDate && currentShift"
+        class="schedule-info"
+      >
+        <span class="schedule-date">{{ formatDate(currentDate) }}</span>
+        <span class="schedule-separator">|</span>
+        <span class="schedule-shift">{{ currentShift }}</span>
+      </span>
+    </h1>
+  </kendo-appbar-section>
+
+  <kendo-appbar-spacer></kendo-appbar-spacer>
+</kendo-appbar>
+<kendo-drawer-container>
+  <kendo-drawer
+    #drawer
+    [items]="items"
+    [mini]="true"
+    [expanded]="true"
+    (select)="onSelect($event)"
+    [mode]="'push'"
+  >
+    <ng-template kendoDrawerItemTemplate let-item>
+      <div class="k-drawer-link" [routerLink]="'./' + item.path">
+        <kendo-svgicon [icon]="item.svgIcon"></kendo-svgicon>
+        <span>{{ item.text }}</span>
+      </div>
+    </ng-template>
+  </kendo-drawer>
+
+  <kendo-drawer-content>
+    <div class="content-container">
+      <router-outlet></router-outlet>
+    </div>
+  </kendo-drawer-content>
+</kendo-drawer-container>

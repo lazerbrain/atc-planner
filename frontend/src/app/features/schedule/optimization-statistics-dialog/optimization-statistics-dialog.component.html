@@ -1,0 +1,57 @@
+<div class="statistics-container">
+  <h2>Statistika optimizacije</h2>
+  <ul>
+    <li>
+      Status rešenja: {{ statistics.solutionStatus }}
+      <i class="info-icon" (click)="toggleSolutionStatusInfo()">ℹ️</i>
+      <div *ngIf="showSolutionStatusInfo" class="info-text">
+        {{ getSolutionStatusExplanation() }}
+      </div>
+    </li>
+    <li>Stopa uspešnosti: {{ statistics.formattedSuccessRate }}</li>
+    <li>Vreme rešavanja: {{ statistics.formattedWallTime }}</li>
+    <li>
+      Zaposleni sa nedostatkom smena: {{ statistics.employeesWithShortage }}
+    </li>
+    <li>Slotovi sa nedostatkom: {{ statistics.slotsWithShortage }}</li>
+    <li>Slotovi sa viškom: {{ statistics.slotsWithExcess }}</li>
+    <li>
+      Usklađenost pauze: {{ statistics.formattedBreakCompliance }}
+      <i class="info-icon" (click)="toggleBreakComplianceInfo()">ℹ️</i>
+      <div *ngIf="showBreakComplianceInfo" class="info-text">
+        Usklađenost pauze meri koliko raspored poštuje pravila o obaveznim
+        pauzama. Nakon 30, 60 ili 90 minuta rada (1-3 slota): Pauza mora biti
+        najmanje 30 minuta (1 slot) Nakon 120 minuta rada: Pauza mora biti
+        najmanje 60 minuta (2 slota)
+        <br />
+        <strong>Šta znači 100% usklađenost</strong>: Svi izvršioci dobijaju
+        odgovarajuće pauze prema gore navedenim pravilima tokom svoje smene.
+      </div>
+    </li>
+    <li>Usklađenost rotacije: {{ statistics.formattedRotationCompliance }}</li>
+    <li>
+      Maksimalna razlika u radnim satima:
+      {{ statistics.formattedMaxWorkHourDifference }}
+      <i class="info-icon" (click)="toggleMaxWorkHourDifference()">ℹ️</i>
+      <div *ngIf="showMaxWorkHourDifference" class="info-text">
+        Ova vrednost predstavlja maksimalnu razliku u radnim satima između
+        izvršilaca sa najviše i najmanje dodeljenih radnih sati. Koristi se za
+        procenu pravičnosti rasporeda. Ako je nula svi zaposleni imaju isti broj
+        radnih sati. Veća vrednost ukazuje na veću neravnomernost u raspodeli
+        radnih sati.
+      </div>
+    </li>
+
+    <li>
+      Vrednost funkcije cilja: {{ statistics.formattedObjectiveValue }}
+      <i class="info-icon" (click)="toggleObjectiveValueInfo()">ℹ️</i>
+      <div *ngIf="showObjectiveValueInfo" class="info-text">
+        Vrednost funkcije cilja predstavlja ukupnu "cenu" trenutnog rasporeda.
+        Niža vrednost označava bolji raspored. Ova vrednost uzima u obzir
+        faktore poput nepopunjenih smena, prekovremenih sati, zadovoljstva
+        zaposlenih i ravnomernosti raspodele rada.
+      </div>
+    </li>
+    <li>Nedostaje izvršilaca: {{ statistics.missingExecutors }}</li>
+  </ul>
+</div>

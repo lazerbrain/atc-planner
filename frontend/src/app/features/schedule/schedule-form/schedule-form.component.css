@@ -1,0 +1,28 @@
+.schedule-form-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.k-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 300px;
+}
+
+.k-form-field {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+kendo-datepicker,
+kendo-dropdownlist {
+  width: 100%;
+}
+
+button {
+  width: 100%;
+}

@@ -1,0 +1,149 @@
+.grid-container {
+  padding: 10px;
+  background-color: #f0f0f0;
+}
+
+.k-grid {
+  font-size: 12px;
+  border: 1px solid #ccc;
+}
+
+.k-grid td {
+  padding: 4px;
+  border: 1px solid #ccc;
+}
+
+::ng-deep .k-grid tr.k-alt {
+  background-color: white !important;
+}
+.k-grid-header .k-header {
+  padding: 4px;
+  font-weight: bold;
+  border: 1px solid #ccc;
+}
+
+.time-slot-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  font-weight: bold;
+}
+
+.time-slot-cell {
+  text-align: center;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.time-slot-cell.shaded {
+  background-color: #d3d3d3;
+}
+
+.centered-cell {
+  text-align: center;
+}
+
+.configuration-row {
+  color: #470aee;
+  font-weight: bold;
+}
+
+.checkbox-column {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.checkbox-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.header-checkbox {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.k-grid td.checkbox-column,
+.k-grid th.checkbox-column {
+  padding: 0;
+}
+
+.k-grid-header th.checkbox-column {
+  vertical-align: middle;
+}
+
+.checkbox-container input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  outline: none;
+  transition: border-color 0.2s ease-in-out;
+  position: relative;
+}
+
+.checkbox-container input[type="checkbox"]:checked {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.checkbox-container input[type="checkbox"]:checked::before {
+  content: "\2713";
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 14px;
+}
+
+.time-slot-cell.shortage {
+  background-color: #ffcccc;
+}
+
+.shortage-indicator {
+  color: red;
+  font-weight: bold;
+  margin-left: 5px;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.time-slot-cell.highlighted-sector {
+  background-color: #ffff00;
+  font-weight: bold;
+  animation: pulse 2s infinite;
+}
+
+.time-slot-cell.highlighted-sector:hover {
+  background-color: #ffea00;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}

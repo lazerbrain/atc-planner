@@ -1,0 +1,163 @@
+<div class="grid-container">
+  <kendo-grid
+    [data]="data"
+    *ngIf="data.length > 0"
+    [pageable]="false"
+    [sortable]="false"
+    [resizable]="true"
+    [scrollable]="'none'"
+  >
+    <kendo-grid-column
+      [width]="50"
+      [headerClass]="'checkbox-column'"
+      [class]="'checkbox-column'"
+    >
+      <ng-template kendoGridHeaderTemplate>
+        <div class="checkbox-container header-checkbox">
+          <input
+            type="checkbox"
+            [checked]="selectAllChecked"
+            (change)="onSelectionAllChange()"
+          />
+        </div>
+      </ng-template>
+      <ng-template kendoGridCellTemplate let-dataItem>
+        <div class="checkbox-container">
+          <input
+            type="checkbox"
+            *ngIf="isSelectable(dataItem)"
+            [checked]="dataItem.selected"
+            (change)="onSelectionChange(dataItem)"
+          />
+        </div>
+      </ng-template>
+    </kendo-grid-column>
+    <!-- Column: Ime i prezime -->
+    <kendo-grid-column
+      field="sifra"
+      title="Šifra"
+      [width]="40"
+      [headerStyle]="{ 'background-color': '#d3d3d3' }"
+    >
+    </kendo-grid-column>
+
+    <!-- Column: Ime i prezime -->
+    <kendo-grid-column
+      field="prezimeIme"
+      title="Prezime i ime"
+      [width]="120"
+      [headerStyle]="{ 'background-color': '#d3d3d3' }"
+    >
+      <ng-template kendoGridCellTemplate let-dataItem let-rowIndex="rowIndex">
+        <div *ngIf="!dataItem.config; else configCell" class="centered-cell">
+          {{ dataItem.prezimeIme }}
+        </div>
+        <ng-template #configCell>
+          <div
+            *ngIf="rowIndex === data.length - 1"
+            class="centered-cell"
+            [attr.colspan]="6"
+          >
+            Konfiguracije
+          </div>
+        </ng-template>
+      </ng-template>
+    </kendo-grid-column>
+
+    <!-- Column: Smena -->
+    <kendo-grid-column
+      field="smena"
+      title="Sm."
+      [width]="40"
+      [headerStyle]="{ 'background-color': '#d3d3d3' }"
+    >
+      <ng-template kendoGridCellTemplate let-dataItem let-rowIndex="rowIndex">
+        <div *ngIf="!dataItem.config; else emptyCell" class="centered-cell">
+          {{ dataItem.smena }}
+        </div>
+        <ng-template #emptyCell>
+          <!-- Leave empty in the configuration row, as it's merged -->
+        </ng-template>
+      </ng-template>
+    </kendo-grid-column>
+
+    <!-- Column: ORM -->
+    <kendo-grid-column
+      field="orm"
+      title="ORM"
+      [width]="60"
+      [headerStyle]="{ 'background-color': '#d3d3d3' }"
+    >
+      <ng-template kendoGridCellTemplate let-dataItem let-rowIndex="rowIndex">
+        <div *ngIf="!dataItem.config; else emptyCell" class="centered-cell">
+          {{ dataItem.orm }}
+        </div>
+        <ng-template #emptyCell>
+          <!-- Leave empty in the configuration row, as it's merged -->
+        </ng-template>
+      </ng-template>
+    </kendo-grid-column>
+
+    <kendo-grid-column field="workingHours" title="S." [width]="30">
+      <ng-template kendoGridCellTemplate let-dataItem>
+        <div
+          class="centered-cell"
+          *ngIf="!dataItem.config; else emptyCell"
+          [title]="getWorkingHoursTooltip(dataItem)"
+        >
+          {{ calculateWorkingHours(dataItem) }}
+        </div>
+      </ng-template>
+
+      <ng-template #emptyCell>
+        <!-- Leave empty in the configuration row, as it's merged -->
+      </ng-template>
+    </kendo-grid-column>
+
+    <!-- Other Columns (Time Slots) -->
+    <kendo-grid-column
+      *ngFor="let slot of formattedTimeSlots; let i = index"
+      [field]="'timeSlots.' + timeSlots[i] + '.value'"
+      [width]="50"
+      [headerStyle]="{ 'background-color': '#d3d3d3' }"
+    >
+      <ng-template kendoGridHeaderTemplate>
+        <div class="time-slot-header">
+          <div>{{ slot.start }}</div>
+          <div>{{ slot.end }}</div>
+        </div>
+      </ng-template>
+      <ng-template kendoGridCellTemplate let-dataItem>
+        <div
+          class="time-slot-cell"
+          [ngClass]="{
+            shaded: isShaded(dataItem, timeSlots[i]),
+            intermediate:
+              dataItem.timeSlots &&
+              dataItem.timeSlots[timeSlots[i]]?.isIntermediateShift,
+            'configuration-row': isConfigurationRow(dataItem),
+            shortage:
+              isConfigurationRow(dataItem) && isShortageSlot(timeSlots[i]),
+            'highlighted-sector': isSectorHighlighted(dataItem, timeSlots[i])
+          }"
+          [title]="getTooltip(dataItem, timeSlots[i])"
+        >
+          {{
+            (dataItem.timeSlots && dataItem.timeSlots[timeSlots[i]]?.value) ||
+              dataItem[timeSlots[i]] ||
+              ""
+          }}
+          <ng-container
+            *ngIf="
+              dataItem.timeSlots &&
+              (dataItem.timeSlots[timeSlots[i]]?.value === null ||
+                dataItem.timeSlots[timeSlots[i]]?.flag !== null)
+            "
+          >
+            &nbsp;
+          </ng-container>
+        </div>
+      </ng-template>
+    </kendo-grid-column>
+  </kendo-grid>
+</div>
