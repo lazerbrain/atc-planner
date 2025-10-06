@@ -397,7 +397,9 @@ namespace ATCPlanner.Controllers
                     request.OptimizationRequest.SelectedOperativeWorkplaces,
                     request.OptimizationRequest.SelectedEmployees,
                     useSimulatedAnnealing: false, // Uvek OR-Tools
-                    request.OptimizationRequest.UseManualAssignments);
+                    request.OptimizationRequest.UseManualAssignments,
+                    request.OptimizationRequest.RandomSeed,
+                    request.OptimizationRequest.UseRandomization ?? true);
 
                 // Kreiraj OR-Tools run objekat
                 var orToolsRun = new OrToolsOptimizationRun
@@ -412,7 +414,9 @@ namespace ATCPlanner.Controllers
                         UseLNS = request.OptimizationRequest.UseLNS,
                         UseManualAssignments = request.OptimizationRequest.UseManualAssignments,
                         SelectedOperativeWorkplaces = request.OptimizationRequest.SelectedOperativeWorkplaces?.ToList() ?? new List<string>(),
-                        SelectedEmployees = request.OptimizationRequest.SelectedEmployees?.ToList() ?? new List<string>()
+                        SelectedEmployees = request.OptimizationRequest.SelectedEmployees?.ToList() ?? new List<string>(),
+                        RandomSeed = request.OptimizationRequest.RandomSeed,
+                        UseRandomization = request.OptimizationRequest.UseRandomization ?? true
                     },
                     SolverStatus = optimizationResponse.Statistics.SolutionStatus,
                     ObjectiveValue = optimizationResponse.Statistics.ObjectiveValue,

@@ -9,4 +9,6 @@ export interface OptimizationRequest {
   selectedOperativeWorkplaces: string[];
   selectedEmployees: string[];
   useManualAssignments: boolean;
+  randomSeed?: number;
+  useRandomization?: boolean;
 }

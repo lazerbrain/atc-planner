@@ -16,6 +16,6 @@ namespace ATCPlanner.Models
         public List<string>? SelectedEmployees { get; set; } = [];
         public List<ConfigurationUpdate>? UpdatedConfigurations { get; set; } = [];
         public int? RandomSeed { get; set; }
-        public bool UseRandomization { get; set; } = true;
+        public bool? UseRandomization { get; set; } = true;
     }
 }

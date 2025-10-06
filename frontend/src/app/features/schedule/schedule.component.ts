@@ -328,6 +328,8 @@ export class ScheduleComponent {
       day: '2-digit',
     });
 
+    const randomSeed = Math.floor(Math.random() * 1000000);
+
     // Jednostavno menjanje parametara za različite rezultate
     const params = { ...this.optimizationParams };
 
@@ -350,6 +352,8 @@ export class ScheduleComponent {
       selectedOperativeWorkplaces: [],
       selectedEmployees: this.selectedEmployees,
       useManualAssignments: this.optimizationParams.useManualAssignments, //true,
+      randomSeed: randomSeed,
+      useRandomization: true,
     };
 
     this.optimizing$.next(true);
