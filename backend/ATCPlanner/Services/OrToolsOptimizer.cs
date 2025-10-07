@@ -143,7 +143,8 @@ namespace ATCPlanner.Services
                 var solver = new CpSolver();
 
                 // Dodaj randomizaciju
-                string solverParams = $"max_time_in_seconds:{maxExecTime};log_search_progress:true";
+                //   string solverParams = $"max_time_in_seconds:{maxExecTime};log_search_progress:true";
+                string solverParams = $"max_time_in_seconds:{maxExecTime};log_search_progress:true;num_workers:8;relative_gap_limit:0.02;cp_model_presolve:true";
 
                 if (useRandomization)
                 {
