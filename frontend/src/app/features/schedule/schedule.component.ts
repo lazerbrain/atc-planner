@@ -708,7 +708,7 @@ export class ScheduleComponent {
             title: 'Istorija optimizacija',
             content: OptimizationHistoryDialogComponent,
             width: 1100,
-            height: 650,
+            height: 750,
             appendTo: this.dialogContainerRef,
           });
 

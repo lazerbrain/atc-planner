@@ -1,7 +1,13 @@
 import { Component, Input } from '@angular/core';
 import { DialogRef } from '@progress/kendo-angular-dialog';
 import { OptimizationHistoryEntry } from 'src/app/models/ortools-session.model';
-import { starIcon, checkIcon } from '@progress/kendo-svg-icons';
+import {
+  starIcon,
+  checkIcon,
+  chevronUpIcon,
+  chevronDownIcon,
+  questionCircleIcon,
+} from '@progress/kendo-svg-icons';
 
 @Component({
   selector: 'app-optimization-history-dialog',
@@ -15,8 +21,17 @@ export class OptimizationHistoryDialogComponent {
 
   starIcon = starIcon;
   checkIcon = checkIcon;
+  chevronUpIcon = chevronUpIcon;
+  chevronDownIcon = chevronDownIcon;
+  questionCircleIcon = questionCircleIcon;
+
+  showOptimizationGuide: boolean = false;
 
   constructor(public dialogRef: DialogRef) {}
+
+  toggleOptimizationGuide() {
+    this.showOptimizationGuide = !this.showOptimizationGuide;
+  }
 
   onSelectRun(event: any) {
     const run = event.dataItem as OptimizationHistoryEntry;

@@ -55,7 +55,7 @@
       <!-- Kolona: Success Rate -->
       <kendo-grid-column
         field="statistics.successRate"
-        title="Success Rate"
+        title="Stopa uspeha"
         [width]="120"
       >
         <ng-template kendoGridCellTemplate let-dataItem>
@@ -81,7 +81,11 @@
       </kendo-grid-column>
 
       <!-- Kolona: Objective Value -->
-      <kendo-grid-column field="objectiveValue" title="Objective" [width]="110">
+      <kendo-grid-column
+        field="objectiveValue"
+        title="Funkcija cilja"
+        [width]="110"
+      >
         <ng-template kendoGridCellTemplate let-dataItem>
           {{ dataItem.objectiveValue.toFixed(2) }}
         </ng-template>
@@ -94,6 +98,47 @@
         </ng-template>
       </kendo-grid-column>
     </kendo-grid>
+  </div>
+
+  <div class="info-box">
+    <p>
+      <strong>Napomena:</strong> Najbolje rešenje bira se prvo po
+      <strong>stopi uspeha</strong> (% pokrivenih sektora), zatim po broju
+      slotova sa manjkom, i na kraju po vrednosti funkcije cilja. Niža vrednost
+      funkcije cilja = manje penala = kvalitetnije rešenje.
+    </p>
+  </div>
+
+  <div class="guide-header" (click)="toggleOptimizationGuide()">
+    <kendo-svg-icon [icon]="questionCircleIcon"></kendo-svg-icon>
+    <span>Kako se tumače rezultati?</span>
+    <kendo-svg-icon
+      [icon]="showOptimizationGuide ? chevronUpIcon : chevronDownIcon"
+    ></kendo-svg-icon>
+  </div>
+
+  <div class="guide-content" *ngIf="showOptimizationGuide">
+    <p><strong>Rang rešenja određuje se po sledećem prioritetu:</strong></p>
+    <table class="guide-table">
+      <tr>
+        <td>1️⃣ Stopa uspeha</td>
+        <td>Veća je bolja (100% > 98%)</td>
+      </tr>
+      <tr>
+        <td>2️⃣ Slotovi sa manjkom</td>
+        <td>Manje je bolje (0 > 3)</td>
+      </tr>
+      <tr>
+        <td>3️⃣ Funkcija cilja</td>
+        <td>Niža je bolja (5,000 > 16,000)</td>
+      </tr>
+    </table>
+    <p class="status-explanation">
+      <strong>Optimal:</strong> Solver je matematički dokazao da ne postoji
+      bolje rešenje.<br />
+      <strong>Feasible:</strong> Pronađeno je validno rešenje, ali nije dokazano
+      da je najbolje moguće.
+    </p>
   </div>
 
   <div class="history-footer">
