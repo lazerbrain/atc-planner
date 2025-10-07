@@ -57,11 +57,17 @@
 
         public OrToolsOptimizationRun? GetBestRun()
         {
+            //return OptimizationRuns
+            //    .Where(r => r.Response.Statistics.SolutionStatus == "Optimal" || r.Response.Statistics.SolutionStatus == "Feasible")
+            //    .OrderByDescending(r => r.Response.Statistics.SuccessRate)
+            //    .ThenBy(r => r.Response.Statistics.SlotsWithShortage)
+            //    .ThenBy(r => r.ObjectiveValue)
+            //    .FirstOrDefault();
             return OptimizationRuns
                 .Where(r => r.Response.Statistics.SolutionStatus == "Optimal" || r.Response.Statistics.SolutionStatus == "Feasible")
-                .OrderByDescending(r => r.Response.Statistics.SuccessRate)
+                .OrderBy(r => r.ObjectiveValue)  
+                .ThenByDescending(r => r.Response.Statistics.SuccessRate)
                 .ThenBy(r => r.Response.Statistics.SlotsWithShortage)
-                .ThenBy(r => r.ObjectiveValue)
                 .FirstOrDefault();
         }
     }
