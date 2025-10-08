@@ -258,7 +258,6 @@ export class ScheduleGridComponent implements OnChanges {
       const isShaded =
         slotData &&
         (slotData.flag === 'S' ||
-          slotData.flag === 'M_LAST_HOUR' ||
           (slotData.value === '' && slotData.flag !== null));
 
       return isShaded;

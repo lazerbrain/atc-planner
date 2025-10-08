@@ -3,7 +3,6 @@ using ATCPlanner.Models;
 using ATCPlanner.Utils;
 using Google.OrTools.Sat;
 using System.Data;
-using System.Runtime.CompilerServices;
 
 namespace ATCPlanner.Services
 {
@@ -521,8 +520,8 @@ namespace ATCPlanner.Services
                     var controller = controllerInfo[controllers[c]];
 
                     // proveri da li je kl u smeni u oba slota
-                    bool inShiftPrev = IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count, manualAssignmentsByController, c);
-                    bool inShiftCurr = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftPrev = IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count);
+                    bool inShiftCurr = IsInShift(controller, timeSlots[t], t, timeSlots.Count);
 
                     if (!inShiftPrev || !inShiftCurr)
                         continue;
@@ -642,7 +641,7 @@ namespace ATCPlanner.Services
                     bool allInShift = true;
                     for (int i = 0; i < 4; i++)
                     {
-                        if (!IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count, manualAssignmentsByController, c))
+                        if (!IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count))
                         {
                             allInShift = false;
                             break;
@@ -702,8 +701,8 @@ namespace ATCPlanner.Services
                     var controller = controllerInfo[controllers[c]];
 
                     // Preskačemo ako kontrolor nije u smeni
-                    bool inShiftCurrent = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
-                    bool inShiftNext = t + 1 < timeSlots.Count && IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftCurrent = IsInShift(controller, timeSlots[t], t, timeSlots.Count);
+                    bool inShiftNext = t + 1 < timeSlots.Count && IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count);
 
                     if (!inShiftCurrent || !inShiftNext)
                         continue;
@@ -732,7 +731,7 @@ namespace ATCPlanner.Services
                         bool allInShift = true;
                         for (int i = 1; i <= 3; i++)
                         {
-                            if (!IsInShift(controller, timeSlots[t - i], t - i, timeSlots.Count, manualAssignmentsByController, c))
+                            if (!IsInShift(controller, timeSlots[t - i], t - i, timeSlots.Count))
                             {
                                 allInShift = false;
                                 break;
@@ -763,7 +762,7 @@ namespace ATCPlanner.Services
                             model.Add(worked3PrevSlots + workingAtT + pauseAtTPlus1 < 3).OnlyEnforceIf(longWorkBlock.Not());
 
                             // Osiguravamo da ima pauzu od min 2 slota (60 min)
-                            if (t + 2 < timeSlots.Count && IsInShift(controller, timeSlots[t + 2], t + 2, timeSlots.Count, manualAssignmentsByController))
+                            if (t + 2 < timeSlots.Count && IsInShift(controller, timeSlots[t + 2], t + 2, timeSlots.Count))
                             {
                                 model.Add(assignments[(c, t + 2, "break")] == 1).OnlyEnforceIf(longWorkBlock);
                             }
@@ -789,7 +788,7 @@ namespace ATCPlanner.Services
                     bool allInShift = true;
                     for (int i = 0; i < 4; i++)
                     {
-                        if (!IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count, manualAssignmentsByController, c))
+                        if (!IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count))
                         {
                             allInShift = false;
                             break;
@@ -816,14 +815,14 @@ namespace ATCPlanner.Services
 
                     // Ako radi 4 slota (120 min), osiguravamo pauzu od min 60 min (2 slota) nakon toga
                     if (t + 5 < timeSlots.Count &&
-                        IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count, manualAssignmentsByController, c) &&
-                        IsInShift(controller, timeSlots[t + 5], t + 5, timeSlots.Count, manualAssignmentsByController, c))
+                        IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count) &&
+                        IsInShift(controller, timeSlots[t + 5], t + 5, timeSlots.Count))
                     {
                         model.Add(assignments[(c, t + 4, "break")] + assignments[(c, t + 5, "break")] >= 2)
                              .OnlyEnforceIf(works4Slots);
                     }
                     else if (t + 4 < timeSlots.Count &&
-                            IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count, manualAssignmentsByController, c))
+                            IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count))
                     {
                         // Ako je dostupan samo jedan slot nakon rada, osiguramo bar taj jedan
                         model.Add(assignments[(c, t + 4, "break")] == 1).OnlyEnforceIf(works4Slots);
@@ -847,8 +846,8 @@ namespace ATCPlanner.Services
                 for (int t = 0; t < timeSlots.Count - 1; t++)
                 {
                     // Proveri da li je kontrolor u smeni
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c) ||
-                        !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c))
+                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count) ||
+                        !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count))
                         continue;
 
                     // Provera da li je kontrolor na pauzi u slotu t i radi na t+1 (početak rada)
@@ -889,7 +888,7 @@ namespace ATCPlanner.Services
                     // Proveri minimalni blok (1 slot)
                     for (int len = 0; len < MIN_WORK_BLOCK && t + 1 + len < timeSlots.Count; len++)
                     {
-                        if (!IsInShift(controller, timeSlots[t + 1 + len], t + 1 + len, timeSlots.Count, manualAssignmentsByController, c))
+                        if (!IsInShift(controller, timeSlots[t + 1 + len], t + 1 + len, timeSlots.Count))
                         {
                             canEnforceMinBlock = false;
                             break;
@@ -929,7 +928,7 @@ namespace ATCPlanner.Services
                     for (int i = 0; i < PREFERRED_WORK_BLOCK; i++)
                     {
                         if (t + 1 + i >= timeSlots.Count ||
-                            !IsInShift(controller, timeSlots[t + 1 + i], t + 1 + i, timeSlots.Count, manualAssignmentsByController, c))
+                            !IsInShift(controller, timeSlots[t + 1 + i], t + 1 + i, timeSlots.Count))
                         {
                             canWork4Slots = false;
                             break;
@@ -955,7 +954,7 @@ namespace ATCPlanner.Services
                         {
                             int breakSlot = t + 1 + PREFERRED_WORK_BLOCK + i;
                             if (breakSlot >= timeSlots.Count ||
-                                !IsInShift(controller, timeSlots[breakSlot], breakSlot, timeSlots.Count, manualAssignmentsByController, c))
+                                !IsInShift(controller, timeSlots[breakSlot], breakSlot, timeSlots.Count))
                             {
                                 canHave2SlotBreakAfter = false;
                                 break;
@@ -1011,9 +1010,9 @@ namespace ATCPlanner.Services
 
                 for (int t = 1; t < timeSlots.Count - 1; t++)
                 {
-                    if (!IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count, manualAssignmentsByController, c) ||
-                        !IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c) ||
-                        !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c))
+                    if (!IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count) ||
+                        !IsInShift(controller, timeSlots[t], t, timeSlots.Count) ||
+                        !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count))
                         continue;
 
                     // Proveri pattern: rad-pauza-rad (što treba izbegavati)
@@ -1064,9 +1063,9 @@ namespace ATCPlanner.Services
                     var controller = controllerInfo[controllers[c]];
 
                     // Proveri da li je kontrolor u smeni za sve relevantne slotove
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c) ||
-                        !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c) ||
-                        !IsInShift(controller, timeSlots[t + 2], t + 2, timeSlots.Count, manualAssignmentsByController, c))
+                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count) ||
+                        !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count) ||
+                        !IsInShift(controller, timeSlots[t + 2], t + 2, timeSlots.Count))
                         continue;
 
                     // Za svaki sektor sa E ili P oznakom
@@ -1174,10 +1173,11 @@ namespace ATCPlanner.Services
             _logger.LogInformation($"Added {rotationViolations.Count} rotation tracking variables");
         }
 
-        private void AddSupervisorShiftLeaderConstraints(CpModel model, Dictionary<(int, int, string), IntVar> assignments, List<string> controllers, List<DateTime> timeSlots,
-            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
+        private void AddSupervisorShiftLeaderConstraints(CpModel model, Dictionary<(int, int, string), IntVar> assignments,
+    List<string> controllers, List<DateTime> timeSlots, Dictionary<int, List<string>> requiredSectors,
+    Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
         {
-            _logger.LogInformation("Adding SS (Shift Leader) and SUP (Supervisor) constraints...");
+            _logger.LogInformation("Adding SS/SUP mutual exclusion constraint...");
 
             var ssControllers = new List<int>();
             var supControllers = new List<int>();
@@ -1188,73 +1188,27 @@ namespace ATCPlanner.Services
                 if (controller.IsShiftLeader)
                 {
                     ssControllers.Add(c);
-                    _logger.LogDebug($"Identified SS controller: {controllers[c]}");
+                    _logger.LogInformation($"Identified SS controller: {controllers[c]}");
                 }
                 else if (controller.IsSupervisor)
                 {
                     supControllers.Add(c);
-                    _logger.LogDebug($"Identified SUP controller: {controllers[c]}");
+                    _logger.LogInformation($"Identified SUP controller: {controllers[c]}");
                 }
             }
 
-            _logger.LogInformation($"Found {ssControllers.Count} SS controllers and {supControllers.Count} SUP controllers");
+            _logger.LogInformation($"Found {ssControllers.Count} SS and {supControllers.Count} SUP controllers");
 
+            // SAMO ograničenje: SS i SUP ne rade istovremeno
             for (int t = 0; t < timeSlots.Count; t++)
             {
-                // Proveri manuelne dodele SS i SUP kontrolora za ovaj slot
-                var manuallyWorkingSS = new List<(int controller, string sector)>();
-                var manuallyWorkingSUP = new List<(int controller, string sector)>();
-
-                // Proveri SS kontrolore
-                foreach (int ssC in ssControllers)
-                {
-                    if (!IsInShift(controllerInfo[controllers[ssC]], timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    string? manualAssignment = GetManualAssignment(ssC, t, manualAssignmentsByController);
-                    if (manualAssignment != null && manualAssignment != "break" && requiredSectors[t].Contains(manualAssignment))
-                    {
-                        manuallyWorkingSS.Add((ssC, manualAssignment));
-                    }
-                }
-
-                // Proveri SUP kontrolore
-                foreach (int supC in supControllers)
-                {
-                    if (!IsInShift(controllerInfo[controllers[supC]], timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    string? manualAssignment = GetManualAssignment(supC, t, manualAssignmentsByController);
-                    if (manualAssignment != null && manualAssignment != "break" && requiredSectors[t].Contains(manualAssignment))
-                    {
-                        manuallyWorkingSUP.Add((supC, manualAssignment));
-                    }
-                }
-
-                // ✅ KLJUČNA IZMENA: Ako su oba manualno dodeljena, preskači constraint
-                if (manuallyWorkingSS.Count > 0 && manuallyWorkingSUP.Count > 0)
-                {
-                    _logger.LogWarning($"MANUAL CONFLICT at slot {t} ({timeSlots[t]:HH:mm}): " +
-                                   $"Both SS and SUP manually assigned to work. Skipping mutual exclusion constraint. " +
-                                   $"SS: {string.Join(", ", manuallyWorkingSS.Select(x => $"{controllers[x.controller]} on {x.sector}"))} " +
-                                   $"SUP: {string.Join(", ", manuallyWorkingSUP.Select(x => $"{controllers[x.controller]} on {x.sector}"))}");
-
-                    // Preskači dodavanje constraint-a za ovaj slot jer su oba već fiksirana
-                    continue;
-                }
-
-                // Kreiraj varijable za praćenje rada SS i SUP kontrolora
                 var ssWorkingVars = new List<IntVar>();
                 var supWorkingVars = new List<IntVar>();
 
-                // SS kontrolori (SAMO AKO NISU MANUALNO DODELJEN)
+                // SS kontrolori
                 foreach (int ssC in ssControllers)
                 {
                     if (!IsInShift(controllerInfo[controllers[ssC]], timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    // ✅ Preskači ako je ovaj SS manualno dodeljen
-                    if (manuallyWorkingSS.Any(x => x.controller == ssC))
                         continue;
 
                     var ssIsWorking = model.NewBoolVar($"ss_{ssC}_working_{t}");
@@ -1273,14 +1227,10 @@ namespace ATCPlanner.Services
                     }
                 }
 
-                // SUP kontrolori (SAMO AKO NISU MANUALNO DODELJENI)
+                // SUP kontrolori
                 foreach (int supC in supControllers)
                 {
                     if (!IsInShift(controllerInfo[controllers[supC]], timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    // ✅ Preskači ako je ovaj SUP manualno dodeljen
-                    if (manuallyWorkingSUP.Any(x => x.controller == supC))
                         continue;
 
                     var supIsWorking = model.NewBoolVar($"sup_{supC}_working_{t}");
@@ -1299,8 +1249,7 @@ namespace ATCPlanner.Services
                     }
                 }
 
-                // KLJUČNO OGRANIČENJE: Maksimalno jedan od SS ili SUP može raditi
-                // ✅ Sada ovo dodajemo SAMO za kontrolore koji NISU manualno dodeljeni
+                // KLJUČNO: Maksimalno jedan od SS ili SUP može raditi
                 if (ssWorkingVars.Count > 0 && supWorkingVars.Count > 0)
                 {
                     var allSpecialControllers = new List<IntVar>();
@@ -1309,22 +1258,23 @@ namespace ATCPlanner.Services
 
                     model.Add(LinearExpr.Sum(allSpecialControllers) <= 1);
 
-                    _logger.LogDebug($"Added SS/SUP mutual exclusion for slot {t}: " +
-                                   $"{ssWorkingVars.Count} SS vars, {supWorkingVars.Count} SUP vars");
+                    _logger.LogDebug($"Slot {t} ({timeSlots[t]:HH:mm}): SS and SUP cannot work together");
                 }
-                else if (ssWorkingVars.Count > 1)
+                else if (ssWorkingVars.Count > 0)
                 {
                     model.Add(LinearExpr.Sum(ssWorkingVars) <= 1);
                 }
-                else if (supWorkingVars.Count > 1)
+                else if (supWorkingVars.Count > 0)
                 {
                     model.Add(LinearExpr.Sum(supWorkingVars) <= 1);
                 }
             }
+
+            _logger.LogInformation("SS/SUP mutual exclusion constraints completed.");
         }
 
         private void AddGuaranteedWorkForAllControllers(CpModel model, Dictionary<(int, int, string), IntVar> assignments, List<string> controllers, List<DateTime> timeSlots,
-            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
+            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo)
         {
             _logger.LogInformation("Adding guaranteed work constraints for all selected controllers...");
 
@@ -1355,43 +1305,15 @@ namespace ATCPlanner.Services
             _logger.LogInformation($"Controllers: {regularControllers.Count} regular, {ssControllers.Count} SS, {supControllers.Count} SUP");
 
             // PRAVILO 1: SVI kontrolori MORAJU raditi bar minimum slotova
-            // ALI moramo uzeti u obzir manuelne dodele!
             for (int c = 0; c < controllers.Count; c++)
             {
                 var controller = controllerInfo[controllers[c]];
                 var workSlots = new List<IntVar>();
 
-                // ✅ Brojači za analizu manuelnih dodela
-                int totalSlotsInShift = 0;
-                int manualBreakSlots = 0;
-                int manualWorkSlots = 0;
-                int flexibleSlots = 0;
-
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
                         continue;
-
-                    totalSlotsInShift++;
-
-                    // ✅ Proveri da li postoji manuelna dodela za ovaj slot
-                    string? manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController);
-
-                    if (manualAssignment != null)
-                    {
-                        if (manualAssignment == "break")
-                        {
-                            manualBreakSlots++;
-                        }
-                        else if (requiredSectors[t].Contains(manualAssignment))
-                        {
-                            manualWorkSlots++;
-                        }
-                    }
-                    else
-                    {
-                        flexibleSlots++;
-                    }
 
                     var isWorking = model.NewBoolVar($"is_working_{c}_{t}");
                     var sectorVars = new List<IntVar>();
@@ -1411,38 +1333,11 @@ namespace ATCPlanner.Services
 
                 if (workSlots.Count > 0)
                 {
-                    // ✅ KLJUČNA PROMENA: Prilagodi minimum na osnovu manuelnih dodela
-                    int theoreticalMinWork = Math.Max(1, workSlots.Count / 4); // 25% teoretski
-                    int maxPossibleWork = manualWorkSlots + flexibleSlots; // Maksimum koji može da dostigne
+                    // Minimalno 25% smene za SVE (i SS i SUP i regularne)
+                    int minWork = Math.Max(1, workSlots.Count / 4);
+                    model.Add(LinearExpr.Sum(workSlots) >= minWork);
 
-                    // Ako manuelne pauze sprečavaju dostizanje 25%, smanji zahtev
-                    int minWork = Math.Min(theoreticalMinWork, maxPossibleWork);
-
-                    // ✅ Ako je previše manuelnih pauza, samo proveri da je bar 1 slot rada (ako je moguće)
-                    if (manualBreakSlots > totalSlotsInShift * 0.8) // Više od 80% pauza
-                    {
-                        minWork = Math.Min(1, maxPossibleWork);
-                        _logger.LogWarning($"Controller {controllers[c]} has {manualBreakSlots} manual breaks out of {totalSlotsInShift} slots. " +
-                                         $"Reducing minimum work requirement to {minWork}.");
-                    }
-
-                    // ✅ Samo dodaj constraint ako je zahtev validan
-                    if (minWork > 0 && minWork <= maxPossibleWork)
-                    {
-                        model.Add(LinearExpr.Sum(workSlots) >= minWork);
-                        _logger.LogDebug($"Controller {controllers[c]}: Must work >= {minWork} slots " +
-                                       $"(theoretical {theoreticalMinWork}, max possible {maxPossibleWork}, " +
-                                       $"manual breaks {manualBreakSlots}, manual work {manualWorkSlots}, flexible {flexibleSlots})");
-                    }
-                    else if (maxPossibleWork == 0)
-                    {
-                        _logger.LogWarning($"Controller {controllers[c]}: All slots are manually assigned to breaks. Skipping minimum work constraint.");
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"Controller {controllers[c]}: Cannot enforce minimum work constraint. " +
-                                         $"Required {minWork} but max possible is {maxPossibleWork}.");
-                    }
+                    _logger.LogDebug($"Controller {controllers[c]}: Must work >= {minWork} slots (out of {workSlots.Count})");
                 }
             }
 
@@ -1451,34 +1346,11 @@ namespace ATCPlanner.Services
             var ssWorkloadVars = new List<IntVar>();
             var supWorkloadVars = new List<IntVar>();
 
-            // Kreiraj varijable za ukupno radno vreme - SAMO za kontrolore bez previše manuelnih pauza
+            // Kreiraj varijable za ukupno radno vreme
             foreach (int c in regularControllers)
             {
                 var controller = controllerInfo[controllers[c]];
                 var workSlots = new List<IntVar>();
-
-                // ✅ Proveri broj manuelnih pauza
-                int manualBreaks = 0;
-                int totalSlots = 0;
-
-                for (int t = 0; t < timeSlots.Count; t++)
-                {
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    totalSlots++;
-                    string? manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController);
-                    if (manualAssignment == "break")
-                        manualBreaks++;
-                }
-
-                // ✅ Preskači kontrolore sa previše manuelnih pauza
-                if (manualBreaks > totalSlots * 0.7)
-                {
-                    _logger.LogWarning($"Regular controller {controllers[c]} has {manualBreaks}/{totalSlots} manual breaks. " +
-                                     $"Excluding from workload balancing.");
-                    continue;
-                }
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
@@ -1504,28 +1376,6 @@ namespace ATCPlanner.Services
                 var controller = controllerInfo[controllers[c]];
                 var workSlots = new List<IntVar>();
 
-                // ✅ Proveri broj manuelnih pauza
-                int manualBreaks = 0;
-                int totalSlots = 0;
-
-                for (int t = 0; t < timeSlots.Count; t++)
-                {
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    totalSlots++;
-                    string? manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController);
-                    if (manualAssignment == "break")
-                        manualBreaks++;
-                }
-
-                if (manualBreaks > totalSlots * 0.7)
-                {
-                    _logger.LogWarning($"SS controller {controllers[c]} has {manualBreaks}/{totalSlots} manual breaks. " +
-                                     $"Excluding from workload balancing.");
-                    continue;
-                }
-
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
@@ -1550,28 +1400,6 @@ namespace ATCPlanner.Services
                 var controller = controllerInfo[controllers[c]];
                 var workSlots = new List<IntVar>();
 
-                // ✅ Proveri broj manuelnih pauza
-                int manualBreaks = 0;
-                int totalSlots = 0;
-
-                for (int t = 0; t < timeSlots.Count; t++)
-                {
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
-                        continue;
-
-                    totalSlots++;
-                    string? manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController);
-                    if (manualAssignment == "break")
-                        manualBreaks++;
-                }
-
-                if (manualBreaks > totalSlots * 0.7)
-                {
-                    _logger.LogWarning($"SUP controller {controllers[c]} has {manualBreaks}/{totalSlots} manual breaks. " +
-                                     $"Excluding from workload balancing.");
-                    continue;
-                }
-
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
@@ -1592,7 +1420,6 @@ namespace ATCPlanner.Services
             }
 
             // SS i SUP rade maksimalno 70% prosečnog rada regularnih kontrolora
-            // ✅ Samo ako imamo dovoljno kontrolora u svakoj kategoriji
             if (regularWorkloadVars.Count > 0 && (ssWorkloadVars.Count > 0 || supWorkloadVars.Count > 0))
             {
                 // Nađi maksimum regularnih kontrolora
@@ -1606,11 +1433,20 @@ namespace ATCPlanner.Services
                 // SS radi maksimalno 70% maksimuma regularnih
                 foreach (var ssWork in ssWorkloadVars)
                 {
+                    // ssWork * 10 <= maxRegularWork * 7
+                    // Koristimo linearne izraze umesto direktne multiplikacije
+
+                    // Kreiraj pomoćne varijable
                     var ssWork10 = model.NewIntVar(0, timeSlots.Count * 10, $"ss_work_times_10");
                     var maxWork7 = model.NewIntVar(0, timeSlots.Count * 7, $"max_work_times_7");
 
+                    // ssWork10 = ssWork * 10
                     model.Add(ssWork10 == ssWork * 10);
+
+                    // maxWork7 = maxRegularWork * 7
                     model.Add(maxWork7 == maxRegularWork * 7);
+
+                    // ssWork * 10 <= maxRegularWork * 7
                     model.Add(ssWork10 <= maxWork7);
 
                     _logger.LogInformation("SS works max 70% of regular controllers");
@@ -1622,16 +1458,17 @@ namespace ATCPlanner.Services
                     var supWork10 = model.NewIntVar(0, timeSlots.Count * 10, $"sup_work_times_10");
                     var maxWork7 = model.NewIntVar(0, timeSlots.Count * 7, $"max_work_times_7_sup");
 
+                    // supWork10 = supWork * 10
                     model.Add(supWork10 == supWork * 10);
+
+                    // maxWork7 = maxRegularWork * 7
                     model.Add(maxWork7 == maxRegularWork * 7);
+
+                    // supWork * 10 <= maxRegularWork * 7
                     model.Add(supWork10 <= maxWork7);
 
                     _logger.LogInformation("SUP works max 70% of regular controllers");
                 }
-            }
-            else
-            {
-                _logger.LogWarning($"Cannot enforce 70% rule: regular={regularWorkloadVars.Count}, SS={ssWorkloadVars.Count}, SUP={supWorkloadVars.Count}");
             }
 
             _logger.LogInformation("Guaranteed work constraints added successfully.");
@@ -1677,16 +1514,6 @@ namespace ATCPlanner.Services
                 {
                     int controllerIndex = controllers.IndexOf(controllerCode);
                     if (controllerIndex < 0) continue;
-
-                    var controller = controllerInfo[controllers[controllerIndex]];
-
-                    // Proveri da li je kontrolor u smeni - SADA SA MANUELNIM DODELAMA
-                    if (!IsInShift(controller, timeSlots[timeSlotIndex], timeSlotIndex, timeSlots.Count, manualAssignmentsByController, controllerIndex))
-                    {
-                        _logger.LogWarning($"Manual assignment for controller {controllerCode} at slot {timeSlotIndex} " +
-                                         $"conflicts with shift constraints. Controller is not in shift. Will NOT enforce this assignment.");
-                        continue;
-                    }
 
                     // Proveri da li je sektor validan za ovaj slot
                     if (!requiredSectors[timeSlotIndex].Contains(sector) && sector != "break")
@@ -1784,7 +1611,7 @@ namespace ATCPlanner.Services
             AddMaximumWorkingConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddBreakConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddMinimumWorkBlockConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
-            //AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
+            AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo);
             //AddRotationConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
             AddSupervisorShiftLeaderConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
 
@@ -1944,28 +1771,14 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
         }
 
 
-        private bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots, 
-            Dictionary<int, Dictionary<int, string>>? manualAssignmentsByController = null, int? controllerIndex = null)
+        private static bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots)
         {
             // Osnovni uslov - vreme slota je između početka i kraja smene
             bool inShift = slotTime >= controller.ShiftStart && slotTime < controller.ShiftEnd;
 
             // Dodatni uslov za smenu tipa M - ne radi u poslednja dva slota
-            // IZUZETAK: Ako ima manuelnu dodelu, dozvoli rad u poslednjem satu
             if (inShift && controller.ShiftType == "M" && slotIndex >= totalSlots - 2)
             {
-                // Proveri da li postoji manualna dodela
-                if (manualAssignmentsByController != null &&
-                    controllerIndex.HasValue &&
-                    HasManualAssignment(controllerIndex.Value, slotIndex, manualAssignmentsByController))
-                {
-                    _logger.LogInformation(
-                        $"Controller index {controllerIndex.Value} has manual assignment in last hour of M shift at slot {slotIndex} - ALLOWING work");
-                    return true; // Dozvoli rad ako ima manuelnu dodelu
-                }
-
-                // Nema manuelnu dodelu - primeni standardno ograničenje
-                _logger.LogDebug($"Controller index {controllerIndex?.ToString() ?? "?"} - M shift restriction applied for slot {slotIndex}");
                 inShift = false;
             }
 
@@ -2313,105 +2126,21 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
 
             if (status == CpSolverStatus.Optimal || status == CpSolverStatus.Feasible)
             {
-                // IDENTIFIKUJ MANUELNE DODELE DA BIH ZNAO ŠTA JE MANUELNO DODELJENO
-                var manualAssignments = IdentifyManualAssignments(inicijalniRaspored, controllers, timeSlots);
-                var manualAssignmentsByController = new Dictionary<int, Dictionary<int, string>>();
-
-                foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
-                {
-                    int controllerIndex = controllers.IndexOf(controllerCode);
-                    if (controllerIndex < 0) continue;
-
-                    if (!manualAssignmentsByController.ContainsKey(controllerIndex))
-                    {
-                        manualAssignmentsByController[controllerIndex] = new Dictionary<int, string>();
-                    }
-                    manualAssignmentsByController[controllerIndex][timeSlotIndex] = sector;
-                }
-
                 // konvertuj resenje u listu rezultata optimizacije
-                for (int c = 0; c < controllers.Count; c++)
-                {
+                for (int c = 0; c < controllers.Count; c++) {
                     var controllerCode = controllers[c];
                     var controllerData = controllerInfo[controllerCode];
-
-                    // *** UZMI REDOSLED I PAR IZ INICIJALNOG RASPOREDA ***
-                    var controllerRow = inicijalniRaspored.AsEnumerable()
-                        .FirstOrDefault(row => row.Field<string>("sifra") == controllerCode);
-
-                    int redosled = 0;
-                    string? par = null;
-
-                    if (controllerRow != null)
-                    {
-                        redosled = controllerRow["Redosled"] != DBNull.Value ? Convert.ToInt32(controllerRow["Redosled"]) : 0;
-                        par = controllerRow.Field<string>("Par");
-                    }
 
                     for (int t = 0; t < timeSlots.Count; t++)
                     {
                         DateTime timeSlot = timeSlots[t];
                         bool inShift = timeSlot >= controllerData.ShiftStart && timeSlot < controllerData.ShiftEnd;
 
-                        // *** KLJUČNA IZMENA: Proveri da li je M smena u poslednjem satu ***
-                        bool isLastHourM = controllerData.ShiftType == "M" && t >= timeSlots.Count - 2;
-
-                        // Proveri da li ima manuelnu dodelu za ovaj slot
-                        bool hasManualAssignment = manualAssignmentsByController.ContainsKey(c) &&
-                                                   manualAssignmentsByController[c].ContainsKey(t);
-
-                        // *** NOVA LOGIKA: Ako je M smena u poslednjem satu ***
-                        if (inShift && isLastHourM)
+                        if (inShift && controllerData.ShiftType == "M" && t >= timeSlots.Count - 2)
                         {
-                            if (hasManualAssignment)
-                            {
-                                // IMA MANUELNU DODELU - dodaj kao normalan slot sa sektorom
-                                string manualSector = manualAssignmentsByController[c][t];
-
-                                optimizedResults.Add(new OptimizationResultDTO
-                                {
-                                    Sifra = controllerCode,
-                                    PrezimeIme = controllerData.Name,
-                                    Smena = controllerData.ShiftType,
-                                    Datum = datum,
-                                    DatumOd = timeSlot,
-                                    DatumDo = timeSlot.AddMinutes(_slotDurationMinutes),
-                                    Sektor = manualSector,
-                                    ORM = controllerData.ORM,
-                                    Flag = this.IsFlagS(controllerCode, timeSlot, inicijalniRaspored) ? "S" : null,
-                                    Redosled = redosled,
-                                    Par = par,
-                                    VremeStart = controllerData.VremeStart
-                                });
-
-                                _logger.LogInformation($"M shift last hour: Controller {controllerCode} has MANUAL assignment: {manualSector}");
-                            }
-                            else
-                            {
-                                // NEMA MANUELNU DODELU - dodaj PRAZAN slot sa specijalnim flagom
-                                optimizedResults.Add(new OptimizationResultDTO
-                                {
-                                    Sifra = controllerCode,
-                                    PrezimeIme = controllerData.Name,
-                                    Smena = controllerData.ShiftType,
-                                    Datum = datum,
-                                    DatumOd = timeSlot,
-                                    DatumDo = timeSlot.AddMinutes(_slotDurationMinutes),
-                                    Sektor = "", // PRAZAN sektor
-                                    ORM = controllerData.ORM,
-                                    Flag = "M_LAST_HOUR", // SPECIJALAN FLAG
-                                    Redosled = redosled,
-                                    Par = par,
-                                    VremeStart = controllerData.VremeStart
-                                });
-
-                                _logger.LogDebug($"M shift last hour: Controller {controllerCode} - empty slot added");
-                            }
-
-                            continue; // Preskoči normalno procesiranje za ovaj slot
+                            inShift = false;
                         }
 
-                        // *** ORIGINALNI KOD ZA SVE OSTALE SLOTOVE ***
                         if (inShift)
                         {
                             string assignedSector = string.Empty;
@@ -2440,11 +2169,9 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                                 Datum = datum,
                                 DatumOd = timeSlot,
                                 DatumDo = timeSlot.AddMinutes(_slotDurationMinutes),
-                                Sektor = assignedSector, // null ili prazan ako je na pauzi (break)
+                                Sektor = assignedSector, // null ako je na pauzi (break)
                                 ORM = controllerData.ORM,
                                 Flag = this.IsFlagS(controllerCode, timeSlot, inicijalniRaspored) ? "S" : null,
-                                Redosled = redosled,
-                                Par = par,
                                 VremeStart = controllerData.VremeStart
                             });
                         }
@@ -2453,7 +2180,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             }
             else
             {
-                // Analiziraj razloge neuspešnosti
+                // NOVA FUNKCIONALNOST: Analiziraj razloge neuspešnosti
                 AnalyzeFailureReasons(status, assignments, controllers, timeSlots, requiredSectors, controllerInfo, inicijalniRaspored);
 
                 // Ako nemamo validno rešenje, vratimo praznu listu rezultata sa adekvatnim statusom
