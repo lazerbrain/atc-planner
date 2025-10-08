@@ -13,5 +13,9 @@
         public string? ORM { get; set; }
         public string? Flag { get; set; }
         public DateTime VremeStart { get; set; }
+
+        public int Redosled { get; set; }   
+
+        public string? Par {  get; set; }    
     }
 }
