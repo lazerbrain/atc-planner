@@ -42,7 +42,7 @@ namespace ATCPlanner.Services
             }
         }
 
-        public string CreateSession(string smena, DateTime datum)
+        public async Task<string> CreateSession(string smena, DateTime datum)
         {
             var session = new OrToolsOptimizationSession
             {

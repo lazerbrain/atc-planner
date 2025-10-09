@@ -339,7 +339,7 @@ namespace ATCPlanner.Controllers
         {
             try
             {
-                var sessionId = _orToolsSessionService.CreateSession(request.Smena, request.Datum);
+                var sessionId = await _orToolsSessionService.CreateSession(request.Smena, request.Datum);
 
                 return Ok(new { SessionId = sessionId });
             }

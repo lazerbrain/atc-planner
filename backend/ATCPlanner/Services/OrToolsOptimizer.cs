@@ -1196,9 +1196,8 @@ namespace ATCPlanner.Services
             _logger.LogInformation($"Added {rotationViolations.Count} rotation tracking variables");
         }
 
-        private void AddSupervisorShiftLeaderConstraints(CpModel model, Dictionary<(int, int, string), IntVar> assignments,
-    List<string> controllers, List<DateTime> timeSlots, Dictionary<int, List<string>> requiredSectors,
-    Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
+        private void AddSupervisorShiftLeaderConstraints(CpModel model, Dictionary<(int, int, string), IntVar> assignments, List<string> controllers, List<DateTime> timeSlots,
+            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
         {
             _logger.LogInformation("Adding SS/SUP mutual exclusion constraint...");
 
