@@ -1,5 +1,6 @@
 using ATCPlanner.Data;
 using ATCPlanner.Services;
+using ATCPlanner.Services.Constraints;
 using ATCPlanner.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,14 @@ builder.Services.AddScoped<DatabaseHandler>();
 builder.Services.AddSingleton<OrToolsSessionService>();
 builder.Services.AddScoped<DataTableFilter>();
 builder.Services.AddScoped<RosterOptimizer>();
+
+// Register constraint services
+builder.Services.AddScoped<IOrToolsConstraint, BaseConstraint>();
+builder.Services.AddScoped<IOrToolsConstraint, SectorContinuityConstraint>();
+builder.Services.AddScoped<IOrToolsConstraint, BreakAndWorkDurationConstraint>();
+builder.Services.AddScoped<IOrToolsConstraint, SupervisorShiftLeaderConstraint>();
+builder.Services.AddScoped<IOrToolsConstraint, GuaranteedWorkConstraint>();
+
 
 // Add logging
 builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
