@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 ﻿using ATCPlanner.Data;
 using ATCPlanner.Models;
 using ATCPlanner.Utils;
@@ -21,12 +22,26 @@ namespace ATCPlanner.Services
     /// 10. SS radi samo kada sistem pokaže nedovoljan broj kontrolora
     /// </summary>
     
-    public class OrToolsOptimizer(ILogger logger, DataTableFilter dataTableFilter, DatabaseHandler databaseHandler, int slotDurationMinutes = 30)
+    public class OrToolsOptimizer
     {
-        private readonly ILogger _logger = logger;
-        private readonly DataTableFilter _dataTableFilter = dataTableFilter;
-        private readonly DatabaseHandler _databaseHandler = databaseHandler;
-        private readonly int _slotDurationMinutes = slotDurationMinutes;
+        private readonly ILogger _logger;
+        private readonly DataTableFilter _dataTableFilter;
+        private readonly DatabaseHandler _databaseHandler;
+        private readonly int _slotDurationMinutes;
+        private readonly IConfiguration _configuration;
+
+        private readonly int _block30MinPenalty;
+        private readonly int _block1HourPenalty;
+        private readonly int _block15HourBonus;
+        private readonly int _block2HourBonus;
+        private readonly int _uncoveredSectorPenalty;
+        private readonly int _lastHourWorkPenalty;
+        private readonly int _shortBreakPenalty;
+        private readonly int _rotationViolationPenalty;
+        private readonly int _continuityBonus;
+        private readonly int _excessControllerPenalty;
+        private readonly int _nightShiftBreakBonus;
+        private readonly int _nightShiftWorkPenalty;
 
         private DataTable? _konfiguracije;
         private List<string>? _controllersWithLicense;
@@ -34,16 +49,28 @@ namespace ATCPlanner.Services
         // Struktura za čuvanje originalnog rasporeda
         private Dictionary<(int controller, int slot), string> _originalAssignments = new Dictionary<(int controller, int slot), string>();
 
-        // Ograničenja za model prema PRIORITETU #1 i #2
-        private const int MIN_WORK_BLOCK = 1; // min 1 slot (30 min) rada (PRIORITET #1)
+        public OrToolsOptimizer(ILogger logger, DataTableFilter dataTableFilter, DatabaseHandler databaseHandler, int slotDurationMinutes, IConfiguration configuration)
+        {
+            _logger = logger;
+            _dataTableFilter = dataTableFilter;
+            _databaseHandler = databaseHandler;
+            _slotDurationMinutes = slotDurationMinutes;
+            _configuration = configuration;
 
-        // Penali za različite dužine radnih blokova (PRIORITET #1)
-        private const int BLOCK_30MIN_PENALTY = 100; // Visok penal za blokove od 30min
-        private const int BLOCK_1HOUR_PENALTY = 50;  // Srednji penal za blokove od 1h
-        private const int BLOCK_15HOUR_BONUS = -30;  // Bonus za blokove od 1.5h
-        private const int BLOCK_2HOUR_BONUS = -30;   // Bonus za blokove od 2h
-
-        private const int UNCOVERED_SECTOR_PENALTY = 50000000; // Izuzetno visok penal
+            // Učitavanje penala iz konfiguracije
+            _block30MinPenalty = _configuration.GetValue<int>("OrToolsPenalties:Block30MinPenalty", 100);
+            _block1HourPenalty = _configuration.GetValue<int>("OrToolsPenalties:Block1HourPenalty", 50);
+            _block15HourBonus = _configuration.GetValue<int>("OrToolsPenalties:Block15HourBonus", -30);
+            _block2HourBonus = _configuration.GetValue<int>("OrToolsPenalties:Block2HourBonus", -30);
+            _uncoveredSectorPenalty = _configuration.GetValue<int>("OrToolsPenalties:UncoveredSectorPenalty", 50000000);
+            _lastHourWorkPenalty = _configuration.GetValue<int>("OrToolsPenalties:LastHourWorkPenalty", 500);
+            _shortBreakPenalty = _configuration.GetValue<int>("OrToolsPenalties:ShortBreakPenalty", 300);
+            _rotationViolationPenalty = _configuration.GetValue<int>("OrToolsPenalties:RotationViolationPenalty", 200);
+            _continuityBonus = _configuration.GetValue<int>("OrToolsPenalties:ContinuityBonus", -200);
+            _excessControllerPenalty = _configuration.GetValue<int>("OrToolsPenalties:ExcessControllerPenalty", 100000);
+            _nightShiftBreakBonus = _configuration.GetValue<int>("OrToolsPenalties:NightShiftBreakBonus", -1000);
+            _nightShiftWorkPenalty = _configuration.GetValue<int>("OrToolsPenalties:NightShiftWorkPenalty", 800);
+        }
 
         // Definišemo rečnik za praćenje varijabli za kratke pauze
         readonly Dictionary<(int, int), IntVar> shortBreakVars = [];
@@ -1918,7 +1945,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                     {
                         model.Add(LinearExpr.Sum(sectorVars) == 0).OnlyEnforceIf(sectorNotCovered);
                         model.Add(LinearExpr.Sum(sectorVars) > 0).OnlyEnforceIf(sectorNotCovered.Not());
-                        objectiveTerms.Add(UNCOVERED_SECTOR_PENALTY * sectorNotCovered);
+                        objectiveTerms.Add(_uncoveredSectorPenalty * sectorNotCovered);
                     }
                 }
             }
@@ -1955,7 +1982,6 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             // ============================================================================
             // 3. PENALI ZA RAD U POSLEDNJEM SATU SMENE
             // ============================================================================
-            const int LAST_HOUR_PENALTY = 500;
             for (int c = 0; c < controllers.Count; c++)
             {
                 var controller = controllerInfo[controllers[c]];
@@ -1972,7 +1998,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                             continue;
                         }
 
-                        objectiveTerms.Add(LAST_HOUR_PENALTY * assignments[(c, t, sector)]);
+                        objectiveTerms.Add(_lastHourWorkPenalty * assignments[(c, t, sector)]);
                     }
                 }
             }
@@ -1982,7 +2008,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             // ============================================================================
             foreach (var entry in shortBreakVars)
             {
-                objectiveTerms.Add(300 * entry.Value);
+                objectiveTerms.Add(_shortBreakPenalty * entry.Value);
             }
 
             // ============================================================================
@@ -1990,7 +2016,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             // ============================================================================
             foreach (var entry in shouldWorkOnEVars)
             {
-                objectiveTerms.Add(200 * entry.Value);
+                objectiveTerms.Add(_rotationViolationPenalty * entry.Value);
             }
 
             // Bonus za pravilno rotiranje pozicija
@@ -2034,7 +2060,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                             model.Add(assignments[(c, t - 1, sector)] == 1).OnlyEnforceIf(continuityBonus);
                             model.Add(assignments[(c, t, sector)] == 1).OnlyEnforceIf(continuityBonus);
 
-                            objectiveTerms.Add(-200 * continuityBonus);
+                            objectiveTerms.Add(_continuityBonus * continuityBonus);
                         }
                     }
                 }
@@ -2043,8 +2069,6 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             // ============================================================================
             // 7. VISOK PENAL ZA VIŠAK KONTROLORA NA ISTOM SEKTORU
             // ============================================================================
-            const int EXCESS_CONTROLLERS_PENALTY = 100000;
-
             for (int t = 0; t < timeSlots.Count; t++)
             {
                 foreach (var sector in requiredSectors[t])
@@ -2062,7 +2086,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                     model.Add(controllersOnSector > 1).OnlyEnforceIf(excessControllers);
                     model.Add(controllersOnSector <= 1).OnlyEnforceIf(excessControllers.Not());
 
-                    objectiveTerms.Add(EXCESS_CONTROLLERS_PENALTY * excessControllers);
+                    objectiveTerms.Add(_excessControllerPenalty * excessControllers);
                 }
             }
 
@@ -2081,12 +2105,12 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                             continue;
 
                         // Bonus za pauze običnih kontrolora u noćnoj smeni
-                        objectiveTerms.Add(-1000 * assignments[(c, t, "break")]);
+                        objectiveTerms.Add(_nightShiftBreakBonus * assignments[(c, t, "break")]);
 
                         // Penal za rad običnih kontrolora u noćnoj smeni
                         foreach (var sector in requiredSectors[t])
                         {
-                            objectiveTerms.Add(800 * assignments[(c, t, sector)]);
+                            objectiveTerms.Add(_nightShiftWorkPenalty * assignments[(c, t, sector)]);
                         }
                     }
                 }
