@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 ﻿using ATCPlanner.Data;
 using ATCPlanner.Models;
 using ATCPlanner.Services;
@@ -11,12 +12,13 @@ namespace ATCPlanner.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class RosterController(DatabaseHandler dbHandler, RosterOptimizer rosterOptimizer, OrToolsSessionService orToolsSessionService, ILogger<RosterController> logger) : ControllerBase
+    public class RosterController(DatabaseHandler dbHandler, RosterOptimizer rosterOptimizer, OrToolsSessionService orToolsSessionService, ILogger<RosterController> logger, IConfiguration configuration) : ControllerBase
     {
         private readonly DatabaseHandler _dbHandler = dbHandler;
         private readonly RosterOptimizer _rosterOptimizer = rosterOptimizer;
         private readonly ILogger<RosterController> _logger = logger;
         private readonly OrToolsSessionService _orToolsSessionService = orToolsSessionService;
+        private readonly IConfiguration _configuration = configuration;
 
         [HttpPost("optimize")]
         public async Task<IActionResult> OptimizeRoster([FromBody] OptimizationRequest request)
@@ -29,113 +31,40 @@ namespace ATCPlanner.Controllers
 
             try
             {
-                // Provera i dobijanje trajanja smene
                 _logger.LogInformation("Starting optimization for Smena: {Smena}, Datum: {Datum}", request.Smena, request.Datum);
 
                 var (datumStart, datumEnd) = await _dbHandler.GetSmenaDurationAsync(request.Datum, request.Smena!);
-
                 if (!datumStart.HasValue || !datumEnd.HasValue)
                 {
                     _logger.LogWarning("Unable to determine shift duration for Smena: {Smena}, {Datum}", request.Datum, request.Smena);
                     return BadRequest("Unable to determine shift duration");
                 }
 
-                // Učitavanje konfiguracija
-                _logger.LogInformation("Shift duration: {datumStart} to {datumEnd}", datumStart, datumEnd);
-
-                var konfiguracije = await _dbHandler.LoadTimeSlotConfigurationsAsync(datumStart.Value, datumEnd.Value);
-
-                if (konfiguracije == null || konfiguracije.Rows.Count == 0)
+                var (konfiguracije, inicijalniRaspored) = await LoadInitialDataAsync(datumStart.Value, datumEnd.Value);
+                if (konfiguracije == null || inicijalniRaspored == null)
                 {
-                    _logger.LogWarning("No configurations found for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
-                    return BadRequest("No configurations found for the given time period");
+                    return BadRequest("No initial schedule or configuration data found for the given time period");
                 }
 
-                // Učitavanje inicijalnog rasporeda
-                _logger.LogInformation("Loaded {konfiguracijeCount} configurations", konfiguracije.Rows.Count);
-
-                var inicijalniRaspored = await _dbHandler.FillByDatumAsync(datumStart.Value, datumEnd.Value);
-
-                if (inicijalniRaspored == null || inicijalniRaspored.Rows.Count == 0)
+                if (request.UpdatedConfigurations != null && request.UpdatedConfigurations.Count > 0)
                 {
-                    _logger.LogWarning("No initial schedule data found for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
-                    return BadRequest("No initial schedule data found for the given time period");
+                    var updatedKonfiguracije = await ApplyConfigurationUpdatesAsync(request.UpdatedConfigurations, datumStart.Value, datumEnd.Value);
+                    if (updatedKonfiguracije == null)
+                    {
+                        return BadRequest("No configurations found for the given time period after updates");
+                    }
+                    konfiguracije = updatedKonfiguracije;
                 }
-
-                // Kreiranje vremenskih slotova
-                _logger.LogInformation("Loaded initial schedule with {EntryCount} entries", inicijalniRaspored.Rows.Count);
 
                 var timeSlots = TimeUtils.CreateTimeSlots(datumStart.Value, datumEnd.Value);
-
                 if (timeSlots == null || timeSlots.Count == 0)
                 {
                     _logger.LogWarning("Failed to create time slots for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
                     return BadRequest("Failed to create time slots");
                 }
 
-                // Postavka trajanja slota (iz konfiguracije ili podrazumevano 30 minuta)
-                int slotDuration = 30; // Podrazumevano 30 minuta
+                int slotDuration = _configuration.GetValue<int>("OptimizationSettings:SlotDurationMinutes", 30);
                 _rosterOptimizer.SetSlotDuration(slotDuration);
-
-                // Primenjivanje izmenjenih konfiguracija ako ih ima
-                if (request.UpdatedConfigurations != null && request.UpdatedConfigurations.Count > 0)
-                {
-                    _logger.LogInformation($"Applying {request.UpdatedConfigurations.Count} configuration updates");
-
-                    foreach (var update in request.UpdatedConfigurations)
-                    {
-                        // Parsirati TimeSlot string u DateTime parametre
-                        var timeSlotParts = update.TimeSlot.Split('-');
-                        if (timeSlotParts.Length == 2)
-                        {
-                            DateTime startTime = DateTime.Parse(timeSlotParts[0]);
-                            DateTime endTime = DateTime.Parse(timeSlotParts[1]);
-
-                            // Parsirati konfiguraciju (format: "TX:CONFIG_CODE" ili "LU:CONFIG_CODE")
-                            string configType = string.Empty;
-                            string configCode = string.Empty;
-
-                            if (!string.IsNullOrEmpty(update.Configuration))
-                            {
-                                var configParts = update.Configuration.Split(':');
-                                if (configParts.Length == 2)
-                                {
-                                    configType = configParts[0];
-                                    configCode = configParts[1];
-
-                                    // Ažuriranje konfiguracije u tabeli
-                                    await _dbHandler.UpdateConfigurationAsync(startTime, endTime, configType, configCode);
-                                    _logger.LogInformation($"Updated configuration for slot {startTime} - {endTime}: {configType}:{configCode}");
-                                }
-                                else
-                                {
-                                    _logger.LogWarning($"Invalid configuration format: {update.Configuration}");
-                                }
-                            }
-                            else
-                            {
-                                // Ako je prazno, ukloni konfiguraciju
-                                await _dbHandler.RemoveConfigurationAsync(startTime, endTime);
-                                _logger.LogInformation($"Removed configuration for slot {startTime} - {endTime}");
-                            }
-                        }
-                        else
-                        {
-                            _logger.LogWarning($"Invalid time slot format: {update.TimeSlot}");
-                        }
-                    }
-
-                    // Ponovo učitati konfiguracije nakon ažuriranja
-                    konfiguracije = await _dbHandler.LoadTimeSlotConfigurationsAsync(datumStart.Value, datumEnd.Value);
-
-                    if (konfiguracije == null || konfiguracije.Rows.Count == 0)
-                    {
-                        _logger.LogWarning("No configurations found after updates for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
-                        return BadRequest("No configurations found for the given time period after updates");
-                    }
-
-                    _logger.LogInformation("Reloaded {konfiguracijeCount} configurations after updates", konfiguracije.Rows.Count);
-                }
 
                 var optimizationResponse = await _rosterOptimizer.OptimizeRoster(
                     request.Smena!,
@@ -172,13 +101,89 @@ namespace ATCPlanner.Controllers
                     return BadRequest("Optimization failed");
                 }
             }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid argument provided for roster optimization.");
+                return BadRequest(ex.Message);
+            }
+            catch (System.Data.Common.DbException ex)
+            {
+                _logger.LogError(ex, "A database error occurred during roster optimization.");
+                return StatusCode(503, "A database error occurred. Please try again later.");
+            }
             catch (Exception ex)
             {
-                // Logovanje greške
-                _logger.LogError(ex, "Error occurred during roster optimization");
-                Console.WriteLine($"Error occurred during roster optimization: {ex}");
-                return StatusCode(500, "An error occurred during optimization");
+                _logger.LogError(ex, "An unexpected error occurred during roster optimization");
+                return StatusCode(500, "An unexpected error occurred during optimization");
             }
+        }
+
+        private async Task<(DataTable? Konfiguracije, DataTable? InicijalniRaspored)> LoadInitialDataAsync(DateTime datumStart, DateTime datumEnd)
+        {
+            _logger.LogInformation("Loading initial data for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
+
+            var konfiguracije = await _dbHandler.LoadTimeSlotConfigurationsAsync(datumStart, datumEnd);
+            if (konfiguracije == null || konfiguracije.Rows.Count == 0)
+            {
+                _logger.LogWarning("No configurations found for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
+                return (null, null);
+            }
+            _logger.LogInformation("Loaded {konfiguracijeCount} configurations", konfiguracije.Rows.Count);
+
+            var inicijalniRaspored = await _dbHandler.FillByDatumAsync(datumStart, datumEnd);
+            if (inicijalniRaspored == null || inicijalniRaspored.Rows.Count == 0)
+            {
+                _logger.LogWarning("No initial schedule data found for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
+                return (konfiguracije, null);
+            }
+            _logger.LogInformation("Loaded initial schedule with {EntryCount} entries", inicijalniRaspored.Rows.Count);
+
+            return (konfiguracije, inicijalniRaspored);
+        }
+
+        private async Task<DataTable?> ApplyConfigurationUpdatesAsync(List<ConfigurationUpdate> updatedConfigurations, DateTime datumStart, DateTime datumEnd)
+        {
+            _logger.LogInformation("Applying {Count} configuration updates", updatedConfigurations.Count);
+
+            foreach (var update in updatedConfigurations)
+            {
+                var timeSlotParts = update.TimeSlot.Split('-');
+                if (timeSlotParts.Length != 2 || !DateTime.TryParse(timeSlotParts[0], out var startTime) || !DateTime.TryParse(timeSlotParts[1], out var endTime))
+                {
+                    _logger.LogWarning("Invalid time slot format: {TimeSlot}", update.TimeSlot);
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(update.Configuration))
+                {
+                    var configParts = update.Configuration.Split(':');
+                    if (configParts.Length == 2)
+                    {
+                        await _dbHandler.UpdateConfigurationAsync(startTime, endTime, configParts[0], configParts[1]);
+                        _logger.LogInformation("Updated configuration for slot {startTime} - {endTime}: {Configuration}", startTime, endTime, update.Configuration);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Invalid configuration format: {Configuration}", update.Configuration);
+                    }
+                }
+                else
+                {
+                    await _dbHandler.RemoveConfigurationAsync(startTime, endTime);
+                    _logger.LogInformation("Removed configuration for slot {startTime} - {endTime}", startTime, endTime);
+                }
+            }
+
+            // Reload configurations after updates
+            var reloadedKonfiguracije = await _dbHandler.LoadTimeSlotConfigurationsAsync(datumStart, datumEnd);
+            if (reloadedKonfiguracije == null || reloadedKonfiguracije.Rows.Count == 0)
+            {
+                _logger.LogWarning("No configurations found after updates for period: {datumStart} to {datumEnd}", datumStart, datumEnd);
+                return null;
+            }
+
+            _logger.LogInformation("Reloaded {konfiguracijeCount} configurations after updates", reloadedKonfiguracije.Rows.Count);
+            return reloadedKonfiguracije;
         }
 
         [HttpGet("get-roster")]
@@ -218,10 +223,20 @@ namespace ATCPlanner.Controllers
 
                 return Ok(response);
             }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid argument provided for fetching roster.");
+                return BadRequest(ex.Message);
+            }
+            catch (System.Data.Common.DbException ex)
+            {
+                _logger.LogError(ex, "A database error occurred while fetching the roster.");
+                return StatusCode(503, "A database error occurred. Please try again later.");
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Greška prilikom dohvatanja rostera");
-                return StatusCode(500, "An error occurred while fetching the roster");
+                _logger.LogError(ex, "An unexpected error occurred while fetching the roster");
+                return StatusCode(500, "An unexpected error occurred while fetching the roster");
             }
         }
 
@@ -380,7 +395,7 @@ namespace ATCPlanner.Controllers
                     return BadRequest("Failed to load required data for optimization");
                 }
 
-                int slotDuration = 30;
+                int slotDuration = _configuration.GetValue<int>("OptimizationSettings:SlotDurationMinutes", 30);
                 _rosterOptimizer.SetSlotDuration(slotDuration);
 
                 // Uvek koristimo OR-Tools (useSimulatedAnnealing = false)
@@ -452,10 +467,20 @@ namespace ATCPlanner.Controllers
                     return BadRequest("Optimization failed");
                 }
             }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid argument provided for session-based optimization. SessionId: {SessionId}", request.SessionId);
+                return BadRequest(ex.Message);
+            }
+            catch (System.Data.Common.DbException ex)
+            {
+                _logger.LogError(ex, "A database error occurred during session-based optimization. SessionId: {SessionId}", request.SessionId);
+                return StatusCode(503, "A database error occurred. Please try again later.");
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred during OR-Tools optimization for session: {SessionId}", request.SessionId);
-                return StatusCode(500, "An error occurred during optimization");
+                _logger.LogError(ex, "An unexpected error occurred during OR-Tools optimization for session: {SessionId}", request.SessionId);
+                return StatusCode(500, "An unexpected error occurred during optimization");
             }
         }
 
@@ -684,13 +709,17 @@ namespace ATCPlanner.Controllers
     // Request modeli
     public class CreateSessionRequest
     {
+        [Required]
         public string Smena { get; set; } = string.Empty;
+        [Required]
         public DateTime Datum { get; set; }
     }
 
     public class OptimizeWithSessionRequest
     {
+        [Required]
         public string SessionId { get; set; } = string.Empty;
+        [Required]
         public OptimizationRequest OptimizationRequest { get; set; } = new();
         public string? Description { get; set; }
     }

@@ -1,10 +1,13 @@
+using System.ComponentModel.DataAnnotations;
 ﻿using System.Linq.Expressions;
 
 namespace ATCPlanner.Models
 {
     public class OptimizationRequest
     {
+        [Required]
         public string? Smena { get; set; }
+        [Required]
         public DateTime Datum { get; set; }
         public int MaxExecTime { get; set; }
         public int? MaxOptimalSolutions { get; set; }
