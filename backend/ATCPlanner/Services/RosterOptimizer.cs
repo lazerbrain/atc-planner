@@ -1,5 +1,6 @@
 ﻿using ATCPlanner.Data;
 using ATCPlanner.Models;
+using ATCPlanner.Services.Constraints;
 using ATCPlanner.Utils;
 using Microsoft.Extensions.Configuration;
 using System.Data;
@@ -15,13 +16,13 @@ namespace ATCPlanner.Services
         private readonly OrToolsOptimizer _orToolsOptimizer;
         private int _slotDurationMinutes = 30;
 
-        public RosterOptimizer(ILogger<RosterOptimizer> logger, DataTableFilter dataTableFilter, DatabaseHandler databaseHandler, IConfiguration configuration)
+        public RosterOptimizer(ILogger<RosterOptimizer> logger, DataTableFilter dataTableFilter, DatabaseHandler databaseHandler, IConfiguration configuration, IEnumerable<IOrToolsConstraint> constraints)
         {
             _logger = logger;
             _dataTableFilter = dataTableFilter;
             _databaseHandler = databaseHandler;
             _simulatedAnnealingOptimizer = new SimulatedAnnealingOptimizer(logger, dataTableFilter, _slotDurationMinutes);
-            _orToolsOptimizer = new OrToolsOptimizer(logger, _dataTableFilter, databaseHandler, _slotDurationMinutes, configuration);
+            _orToolsOptimizer = new OrToolsOptimizer(logger, _dataTableFilter, databaseHandler, _slotDurationMinutes, configuration, constraints);
         }
 
         // Metoda za postavku dužine slota
