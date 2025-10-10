@@ -73,10 +73,6 @@ namespace ATCPlanner.Controllers
                     return BadRequest("Failed to create time slots");
                 }
 
-                // Postavka trajanja slota (iz konfiguracije ili podrazumevano 30 minuta)
-                int slotDuration = 30; // Podrazumevano 30 minuta
-                _rosterOptimizer.SetSlotDuration(slotDuration);
-
                 // Primenjivanje izmenjenih konfiguracija ako ih ima
                 if (request.UpdatedConfigurations != null && request.UpdatedConfigurations.Count > 0)
                 {
@@ -380,8 +376,6 @@ namespace ATCPlanner.Controllers
                     return BadRequest("Failed to load required data for optimization");
                 }
 
-                int slotDuration = 30;
-                _rosterOptimizer.SetSlotDuration(slotDuration);
 
                 // Uvek koristimo OR-Tools (useSimulatedAnnealing = false)
                 var optimizationResponse = await _rosterOptimizer.OptimizeRoster(

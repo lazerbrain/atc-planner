@@ -12,13 +12,18 @@ namespace ATCPlanner.Services
         private readonly DatabaseHandler _databaseHandler;
         private readonly SimulatedAnnealingOptimizer _simulatedAnnealingOptimizer;
         private readonly OrToolsOptimizer _orToolsOptimizer;
-        private int _slotDurationMinutes = 30;
+        private int _slotDurationMinutes;
+        private readonly IConfiguration _configuration;
 
-        public RosterOptimizer(ILogger<RosterOptimizer> logger, DataTableFilter dataTableFilter, DatabaseHandler databaseHandler)
+        public RosterOptimizer(ILogger<RosterOptimizer> logger, DataTableFilter dataTableFilter, DatabaseHandler databaseHandler, IConfiguration configuration)
         {
             _logger = logger;
             _dataTableFilter = dataTableFilter;
             _databaseHandler = databaseHandler;
+            _configuration = configuration;
+
+            _slotDurationMinutes = _configuration.GetValue<int>("OptimizationSettings:SlotDurationMinutes");
+
             _simulatedAnnealingOptimizer = new SimulatedAnnealingOptimizer(logger, dataTableFilter, _slotDurationMinutes);
             _orToolsOptimizer = new OrToolsOptimizer(logger, _dataTableFilter, databaseHandler, _slotDurationMinutes);
         }
@@ -26,14 +31,15 @@ namespace ATCPlanner.Services
         // Metoda za postavku dužine slota
         public void SetSlotDuration(int durationMinutes)
         {
-            if (durationMinutes > 0 && durationMinutes <= 60)
-            {
-                _slotDurationMinutes = durationMinutes;
-            }
-            else
-            {
-                _logger.LogWarning($"Invalid slot duration: {durationMinutes} minutes. Using default value of 30 minutes.");
-            }
+            //if (durationMinutes > 0 && durationMinutes <= 60)
+            //{
+            //    _slotDurationMinutes = durationMinutes;
+            //}
+            //else
+            //{
+            //    _logger.LogWarning($"Invalid slot duration: {durationMinutes} minutes. Using default value of 30 minutes.");
+            //}
+
         }
 
         public async Task<OptimizationResponse> OptimizeRoster(string smena, DateTime datum, DataTable konfiguracije, DataTable inicijalniRaspored, List<DateTime> timeSlots, int maxExecTime,
