@@ -13,7 +13,7 @@ namespace ATCPlanner.Data
         private readonly ILogger<DatabaseHandler> _logger;
 
         public readonly string _connectionString = $"Driver={{ODBC Driver 17 for SQL Server}};" +
-                              $"Server=appsdb;" +
+                              $"Server=spdbvm;" +
                               $"Database=kontrolori_smene;" +
                               $"Uid=roster_bot_user;" +
                               $"Pwd=Bot17;" +
