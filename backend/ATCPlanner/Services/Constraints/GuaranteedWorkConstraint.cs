@@ -45,7 +45,7 @@ namespace ATCPlanner.Services.Constraints
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count)) continue;
+                    if (!ConstraintUtils.IsInShift(controller, timeSlots[t], t, timeSlots.Count)) continue;
 
                     var isWorking = model.NewBoolVar($"is_working_{c}_{t}");
                     var sectorVars = requiredSectors[t].Select(sector => assignments[(c, t, sector)]).ToList();
@@ -76,7 +76,7 @@ namespace ATCPlanner.Services.Constraints
                 var workSlots = new List<IntVar>();
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count)) continue;
+                    if (!ConstraintUtils.IsInShift(controller, timeSlots[t], t, timeSlots.Count)) continue;
                     workSlots.AddRange(requiredSectors[t].Select(sector => assignments[(c, t, sector)]));
                 }
                 if (workSlots.Any())
@@ -90,16 +90,6 @@ namespace ATCPlanner.Services.Constraints
             // Similar loops for ssControllers and supControllers...
 
             _logger.LogInformation("Guaranteed Work Constraints applied successfully.");
-        }
-
-        private bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots)
-        {
-            bool inShift = slotTime >= controller.ShiftStart && slotTime < controller.ShiftEnd;
-            if (inShift && controller.ShiftType == "M" && slotIndex >= totalSlots - 2)
-            {
-                inShift = false;
-            }
-            return inShift;
         }
     }
 }

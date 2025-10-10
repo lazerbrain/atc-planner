@@ -34,8 +34,8 @@ namespace ATCPlanner.Services.Constraints
                     var controller = controllerInfo[controllers[c]];
 
                     // proveri da li je kl u smeni u oba slota
-                    bool inShiftPrev = IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count, manualAssignmentsByController, c);
-                    bool inShiftCurr = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftPrev = ConstraintUtils.IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftCurr = ConstraintUtils.IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
 
                     if (!inShiftPrev || !inShiftCurr)
                         continue;
@@ -166,33 +166,6 @@ namespace ATCPlanner.Services.Constraints
                 }
             }
             return manualAssignments;
-        }
-
-        private bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots, Dictionary<int, Dictionary<int, string>>? manualAssignmentsByController = null, int? controllerIndex = null)
-        {
-            bool inShift = slotTime >= controller.ShiftStart && slotTime < controller.ShiftEnd;
-            if (inShift && controller.ShiftType == "M" && slotIndex >= totalSlots - 2)
-            {
-                bool hasManualAssignment = false;
-                if (manualAssignmentsByController != null && controllerIndex.HasValue && manualAssignmentsByController.ContainsKey(controllerIndex.Value) && manualAssignmentsByController[controllerIndex.Value].ContainsKey(slotIndex))
-                {
-                    string manualSector = manualAssignmentsByController[controllerIndex.Value][slotIndex];
-                    if (!string.IsNullOrEmpty(manualSector) && manualSector != "break")
-                    {
-                        hasManualAssignment = true;
-                    }
-                }
-
-                if (hasManualAssignment)
-                {
-                    return true;
-                }
-                else
-                {
-                    inShift = false;
-                }
-            }
-            return inShift;
         }
 
         private bool HasManualAssignment(int controllerIndex, int timeSlot, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)

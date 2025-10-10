@@ -44,7 +44,7 @@ namespace ATCPlanner.Services.Constraints
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
                     var controller = controllerInfo[controllers[c]];
-                    bool inShift = IsInShift(controller, timeSlots[t], t, timeSlots.Count);
+                    bool inShift = ConstraintUtils.IsInShift(controller, timeSlots[t], t, timeSlots.Count);
 
                     if (!inShift)
                     {
@@ -56,7 +56,7 @@ namespace ATCPlanner.Services.Constraints
                     }
                     else
                     {
-                        bool isFlagS = IsFlagS(controllers[c], timeSlots[t], inicijalniRaspored);
+                        bool isFlagS = ConstraintUtils.IsFlagS(controllers[c], timeSlots[t], inicijalniRaspored);
                         if (isFlagS)
                         {
                             model.Add(assignments[(c, t, "break")] == 1);
@@ -75,32 +75,6 @@ namespace ATCPlanner.Services.Constraints
                 }
             }
             _logger.LogInformation("Base Constraints applied successfully.");
-        }
-
-        private bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots)
-        {
-            bool inShift = slotTime >= controller.ShiftStart && slotTime < controller.ShiftEnd;
-            if (inShift && controller.ShiftType == "M" && slotIndex >= totalSlots - 2)
-            {
-                inShift = false;
-            }
-            return inShift;
-        }
-
-        private bool IsFlagS(string controllerCode, DateTime timeSlot, DataTable inicijalniRaspored)
-        {
-            var controllerShifts = inicijalniRaspored.AsEnumerable().Where(row => row.Field<string>("sifra") == controllerCode).ToList();
-            foreach (var shift in controllerShifts)
-            {
-                DateTime shiftStart = shift.Field<DateTime>("datumOd");
-                DateTime shiftEnd = shift.Field<DateTime>("datumDo");
-                string flag = shift.Field<string>("Flag")!;
-                if (flag == "S" && timeSlot >= shiftStart && timeSlot < shiftEnd)
-                {
-                    return true;
-                }
-            }
-            return false;
         }
     }
 }

@@ -50,7 +50,7 @@ namespace ATCPlanner.Services.Constraints
 
                 foreach (int ssC in ssControllers)
                 {
-                    if (!IsInShift(controllerInfo[controllers[ssC]], timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, ssC)) continue;
+                    if (!ConstraintUtils.IsInShift(controllerInfo[controllers[ssC]], timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, ssC)) continue;
                     var ssIsWorking = model.NewBoolVar($"ss_{ssC}_working_{t}");
                     var sectorVars = requiredSectors[t].Select(sector => assignments[(ssC, t, sector)]).ToList();
                     if (sectorVars.Any())
@@ -63,7 +63,7 @@ namespace ATCPlanner.Services.Constraints
 
                 foreach (int supC in supControllers)
                 {
-                    if (!IsInShift(controllerInfo[controllers[supC]], timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, supC)) continue;
+                    if (!ConstraintUtils.IsInShift(controllerInfo[controllers[supC]], timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, supC)) continue;
                     var supIsWorking = model.NewBoolVar($"sup_{supC}_working_{t}");
                     var sectorVars = requiredSectors[t].Select(sector => assignments[(supC, t, sector)]).ToList();
                     if (sectorVars.Any())
@@ -129,26 +129,6 @@ namespace ATCPlanner.Services.Constraints
                 }
             }
             return manualAssignments;
-        }
-
-        private bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots, Dictionary<int, Dictionary<int, string>>? manualAssignmentsByController = null, int? controllerIndex = null)
-        {
-            bool inShift = slotTime >= controller.ShiftStart && slotTime < controller.ShiftEnd;
-            if (inShift && controller.ShiftType == "M" && slotIndex >= totalSlots - 2)
-            {
-                bool hasManualAssignment = false;
-                if (manualAssignmentsByController != null && controllerIndex.HasValue && manualAssignmentsByController.ContainsKey(controllerIndex.Value) && manualAssignmentsByController[controllerIndex.Value].ContainsKey(slotIndex))
-                {
-                    string manualSector = manualAssignmentsByController[controllerIndex.Value][slotIndex];
-                    if (!string.IsNullOrEmpty(manualSector) && manualSector != "break")
-                    {
-                        hasManualAssignment = true;
-                    }
-                }
-                if (hasManualAssignment) return true;
-                else inShift = false;
-            }
-            return inShift;
         }
     }
 }

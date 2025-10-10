@@ -47,7 +47,7 @@ namespace ATCPlanner.Services.Constraints
                     bool allInShift = true;
                     for (int i = 0; i < 4; i++)
                     {
-                        if (!IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count, manualAssignmentsByController, c))
+                        if (!ConstraintUtils.IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count, manualAssignmentsByController, c))
                         {
                             allInShift = false;
                             break;
@@ -104,8 +104,8 @@ namespace ATCPlanner.Services.Constraints
                 {
                     var controller = controllerInfo[controllers[c]];
 
-                    bool inShiftCurrent = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
-                    bool inShiftNext = t + 1 < timeSlots.Count && IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftCurrent = ConstraintUtils.IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftNext = t + 1 < timeSlots.Count && ConstraintUtils.IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c);
 
                     if (!inShiftCurrent || !inShiftNext)
                         continue;
@@ -127,7 +127,7 @@ namespace ATCPlanner.Services.Constraints
                         bool allInShift = true;
                         for (int i = 1; i <= 3; i++)
                         {
-                            if (!IsInShift(controller, timeSlots[t - i], t - i, timeSlots.Count, manualAssignmentsByController, c))
+                            if (!ConstraintUtils.IsInShift(controller, timeSlots[t - i], t - i, timeSlots.Count, manualAssignmentsByController, c))
                             {
                                 allInShift = false;
                                 break;
@@ -153,7 +153,7 @@ namespace ATCPlanner.Services.Constraints
                             model.Add(worked3PrevSlots + workingAtT + pauseAtTPlus1 == 3).OnlyEnforceIf(longWorkBlock);
                             model.Add(worked3PrevSlots + workingAtT + pauseAtTPlus1 < 3).OnlyEnforceIf(longWorkBlock.Not());
 
-                            if (t + 2 < timeSlots.Count && IsInShift(controller, timeSlots[t + 2], t + 2, timeSlots.Count, manualAssignmentsByController, c))
+                            if (t + 2 < timeSlots.Count && ConstraintUtils.IsInShift(controller, timeSlots[t + 2], t + 2, timeSlots.Count, manualAssignmentsByController, c))
                             {
                                 model.Add(assignments[(c, t + 2, "break")] == 1).OnlyEnforceIf(longWorkBlock);
                             }
@@ -170,7 +170,7 @@ namespace ATCPlanner.Services.Constraints
                     bool allInShift = true;
                     for (int i = 0; i < 4; i++)
                     {
-                        if (!IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count, manualAssignmentsByController, c))
+                        if (!ConstraintUtils.IsInShift(controller, timeSlots[t + i], t + i, timeSlots.Count, manualAssignmentsByController, c))
                         {
                             allInShift = false;
                             break;
@@ -191,11 +191,11 @@ namespace ATCPlanner.Services.Constraints
                     model.Add(LinearExpr.Sum(workVars) == 4).OnlyEnforceIf(works4Slots);
                     model.Add(LinearExpr.Sum(workVars) < 4).OnlyEnforceIf(works4Slots.Not());
 
-                    if (t + 5 < timeSlots.Count && IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count, manualAssignmentsByController, c) && IsInShift(controller, timeSlots[t + 5], t + 5, timeSlots.Count, manualAssignmentsByController, c))
+                    if (t + 5 < timeSlots.Count && ConstraintUtils.IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count, manualAssignmentsByController, c) && ConstraintUtils.IsInShift(controller, timeSlots[t + 5], t + 5, timeSlots.Count, manualAssignmentsByController, c))
                     {
                         model.Add(assignments[(c, t + 4, "break")] + assignments[(c, t + 5, "break")] >= 2).OnlyEnforceIf(works4Slots);
                     }
-                    else if (t + 4 < timeSlots.Count && IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count, manualAssignmentsByController, c))
+                    else if (t + 4 < timeSlots.Count && ConstraintUtils.IsInShift(controller, timeSlots[t + 4], t + 4, timeSlots.Count, manualAssignmentsByController, c))
                     {
                         model.Add(assignments[(c, t + 4, "break")] == 1).OnlyEnforceIf(works4Slots);
                     }
@@ -214,7 +214,7 @@ namespace ATCPlanner.Services.Constraints
 
                 for (int t = 0; t < timeSlots.Count - 1; t++)
                 {
-                    if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c) || !IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c))
+                    if (!ConstraintUtils.IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c) || !ConstraintUtils.IsInShift(controller, timeSlots[t + 1], t + 1, timeSlots.Count, manualAssignmentsByController, c))
                         continue;
 
                     var onBreakT = assignments[(c, t, "break")];
@@ -238,7 +238,7 @@ namespace ATCPlanner.Services.Constraints
                     bool canEnforceMinBlock = true;
                     for (int len = 0; len < MIN_WORK_BLOCK && t + 1 + len < timeSlots.Count; len++)
                     {
-                        if (!IsInShift(controller, timeSlots[t + 1 + len], t + 1 + len, timeSlots.Count, manualAssignmentsByController, c) || GetManualAssignment(c, t + 1 + len, manualAssignmentsByController) == "break")
+                        if (!ConstraintUtils.IsInShift(controller, timeSlots[t + 1 + len], t + 1 + len, timeSlots.Count, manualAssignmentsByController, c) || GetManualAssignment(c, t + 1 + len, manualAssignmentsByController) == "break")
                         {
                             canEnforceMinBlock = false;
                             break;
@@ -293,26 +293,6 @@ namespace ATCPlanner.Services.Constraints
                 }
             }
             return manualAssignments;
-        }
-
-        private bool IsInShift(ControllerInfo controller, DateTime slotTime, int slotIndex, int totalSlots, Dictionary<int, Dictionary<int, string>>? manualAssignmentsByController = null, int? controllerIndex = null)
-        {
-            bool inShift = slotTime >= controller.ShiftStart && slotTime < controller.ShiftEnd;
-            if (inShift && controller.ShiftType == "M" && slotIndex >= totalSlots - 2)
-            {
-                bool hasManualAssignment = false;
-                if (manualAssignmentsByController != null && controllerIndex.HasValue && manualAssignmentsByController.ContainsKey(controllerIndex.Value) && manualAssignmentsByController[controllerIndex.Value].ContainsKey(slotIndex))
-                {
-                    string manualSector = manualAssignmentsByController[controllerIndex.Value][slotIndex];
-                    if (!string.IsNullOrEmpty(manualSector) && manualSector != "break")
-                    {
-                        hasManualAssignment = true;
-                    }
-                }
-                if (hasManualAssignment) return true;
-                else inShift = false;
-            }
-            return inShift;
         }
 
         private string? GetManualAssignment(int controllerIndex, int timeSlot, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
