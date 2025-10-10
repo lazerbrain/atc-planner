@@ -12,22 +12,14 @@ namespace ATCPlanner.Data
     {
         private readonly ILogger<DatabaseHandler> _logger;
 
-        public readonly string _connectionString = $"Driver={{ODBC Driver 17 for SQL Server}};" +
-                              $"Server=spdbvm;" +
-                              $"Database=kontrolori_smene;" +
-                              $"Uid=roster_bot_user;" +
-                              $"Pwd=Bot17;" +
-                              "TrustServerCertificate=yes;" +
-                              "Encrypt=no;" +
-                              "Connection Timeout=60;" +
-                              "LoginTimeout=60";
+        public readonly string _connectionString;
 
         public DatabaseHandler(IConfiguration configuration, ILogger<DatabaseHandler> logger)
         {
             _logger = logger;
 
-            // Kreiramo connection string
-            
+            _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
 
             _logger.LogInformation($"Initialized DatabaseHandler with server: {configuration["ConnectionStrings:DefaultConnection:Server"]}");
         }
