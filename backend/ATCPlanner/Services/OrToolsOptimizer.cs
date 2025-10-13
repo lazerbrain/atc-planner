@@ -1197,7 +1197,8 @@ namespace ATCPlanner.Services
         }
 
         private void AddSupervisorShiftLeaderConstraints(CpModel model, Dictionary<(int, int, string), IntVar> assignments, List<string> controllers, List<DateTime> timeSlots,
-            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
+            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController,
+            bool useManualAssignments)
         {
             _logger.LogInformation("Adding SS/SUP mutual exclusion constraint...");
 
@@ -1224,6 +1225,22 @@ namespace ATCPlanner.Services
             // SAMO ograničenje: SS i SUP ne rade istovremeno
             for (int t = 0; t < timeSlots.Count; t++)
             {
+                // Proveri da li ima manuelnih dodela za SS/SUP u ovom slotu
+                bool hasManualSSAssignment = ssControllers.Any(ssC =>
+                    HasManualAssignment(ssC, t, manualAssignmentsByController) &&
+                    GetManualAssignment(ssC, t, manualAssignmentsByController) != "break");
+
+                bool hasManualSUPAssignment = supControllers.Any(supC =>
+                    HasManualAssignment(supC, t, manualAssignmentsByController) &&
+                    GetManualAssignment(supC, t, manualAssignmentsByController) != "break");
+
+                // **Preskoči mutual exclusion constraint ako oba imaju manualne dodele**
+                if (useManualAssignments && hasManualSSAssignment && hasManualSUPAssignment)
+                {
+                    _logger.LogWarning($"Slot {t} ({timeSlots[t]:HH:mm}): Skipping SS/SUP mutual exclusion - both have manual work assignments");
+                    continue;  // <-- preskoči ovaj slot
+                }
+
                 var ssWorkingVars = new List<IntVar>();
                 var supWorkingVars = new List<IntVar>();
 
@@ -1637,7 +1654,7 @@ namespace ATCPlanner.Services
             AddMinimumWorkBlockConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
             AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo);
             //AddRotationConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
-            AddSupervisorShiftLeaderConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
+            AddSupervisorShiftLeaderConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
 
         }
 
