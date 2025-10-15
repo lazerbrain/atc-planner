@@ -11,6 +11,7 @@
         public DateTime ShiftEnd { get; set; }
         public bool IsShiftLeader { get; set; } // sef smene
         public bool IsSupervisor { get; set; } // supervizor;
+        public bool IsFMP { get; set; }
         public bool HasLicense { get; set; } // kontrolorska dozvola
     }
 }

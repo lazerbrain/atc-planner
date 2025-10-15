@@ -348,7 +348,8 @@ namespace ATCPlanner.Services
                         ShiftEnd = shiftEnd.Value,
                         IsShiftLeader = (firstRow.Field<string>("ORM") ?? "") == "SS",
                         IsSupervisor = (firstRow.Field<string>("ORM") ?? "") == "SUP",
-                        HasLicense = controllersWithLicense.Contains(controllerCode)
+                        IsFMP = (firstRow.Field<string>("ORM") ?? "") == "FMP",
+                         HasLicense = controllersWithLicense.Contains(controllerCode)
                      };
 
                     _logger.LogDebug($"Controller {controllerCode} shift: {shiftStart} to {shiftEnd}, type: {controllerInfo[controllerCode].ShiftType}");
@@ -1871,6 +1872,8 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                                 controllerType = "SS";
                             else if (controller.IsSupervisor)
                                 controllerType = "SUP";
+                            else if (controller.IsFMP)
+                                controllerType = "FMP";
                             else
                                 controllerType = "Regular";
                         }
@@ -3076,7 +3079,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
 
                         if (inShift && !isFlagS)
                         {
-                            string type = controller.IsShiftLeader ? "SS" : controller.IsSupervisor ? "SUP" : "REG";
+                            string type = controller.IsShiftLeader ? "SS" : controller.IsSupervisor ? "SUP" : controller.IsFMP ? "FMP" : "REG";
                             availableList.Add($"{controllers[c]}({type})");
                         }
                     }

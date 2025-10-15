@@ -11,5 +11,6 @@
         public bool? IsYellow { get; set; } // da li je zut (dosao sa GO)
         public bool? IsSupervisor { get; set; }
         public bool? IsShiftLeader { get; set; }
+        public bool? IsFMP { get; set; }
     }
 }
