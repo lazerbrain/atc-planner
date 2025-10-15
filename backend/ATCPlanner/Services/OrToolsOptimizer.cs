@@ -144,6 +144,21 @@ namespace ATCPlanner.Services
                 // uzmi listu svih sektora potrebnih za svaki time slot
                 var requiredSectors = this.GetRequiredSectors(konfiguracije, timeSlots);
 
+                var manualAssignments = IdentifyManualAssignments(inicijalniRaspored, controllers, timeSlots);
+                var manualAssignmentsByController = new Dictionary<int, Dictionary<int, string>>();
+
+                foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
+                {
+                    int controllerIndex = controllers.IndexOf(controllerCode);
+                    if (controllerIndex < 0) continue;
+
+                    if (!manualAssignmentsByController.ContainsKey(controllerIndex))
+                    {
+                        manualAssignmentsByController[controllerIndex] = new Dictionary<int, string>();
+                    }
+                    manualAssignmentsByController[controllerIndex][timeSlotIndex] = sector;
+                }
+
                 // kreiraj i resi model
                 var model = new CpModel();
 
@@ -154,7 +169,7 @@ namespace ATCPlanner.Services
                 this.AddConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, inicijalniRaspored, useManualAssignments);
 
                 // definisanje funkcije cilja
-                var objective = this.DefineObjective(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, inicijalniRaspored, useManualAssignments);
+                var objective = this.DefineObjective(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, inicijalniRaspored, manualAssignmentsByController, useManualAssignments);
                 model.Minimize(objective);
 
                 // resavanje modela
@@ -1774,7 +1789,7 @@ namespace ATCPlanner.Services
             AddMaximumWorkingConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddBreakConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddMinimumWorkBlockConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
-            AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
+       //     AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             //AddRotationConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
             AddSupervisorShiftLeaderConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
 
@@ -2000,7 +2015,8 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
         }
 
         private LinearExpr DefineObjective(CpModel model, Dictionary<(int, int, string), IntVar> assignments, List<string> controllers, List<DateTime> timeSlots,
-            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, DataTable inicijalniRaspored, bool useManualAssignments)
+            Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, DataTable inicijalniRaspored, 
+            Dictionary<int, Dictionary<int, string>> manualAssignmentsByController, bool useManualAssignments)
         {
             // *** SAMO AKO SE KORISTE MANUELNE DODELE, popuni manualAssignmentSet ***
             var manualAssignmentSet = new HashSet<(int controllerIndex, int timeSlotIndex, string sector)>();
@@ -2042,7 +2058,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                         if (assignments.TryGetValue((c, t, sector), out var assignment))
                         {
                             var controller = controllerInfo[controllers[c]];
-                            bool inShift = IsInShift(controller, timeSlots[t], t, timeSlots.Count);
+                            bool inShift = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
                             bool isFlagS = IsFlagS(controllers[c], timeSlots[t], inicijalniRaspored);
 
                             if (inShift && !isFlagS)
@@ -2162,8 +2178,8 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
 
                 for (int t = 1; t < timeSlots.Count; t++)
                 {
-                    bool inShiftPrev = IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count);
-                    bool inShiftCurr = IsInShift(controller, timeSlots[t], t, timeSlots.Count);
+                    bool inShiftPrev = IsInShift(controller, timeSlots[t - 1], t - 1, timeSlots.Count, manualAssignmentsByController, c);
+                    bool inShiftCurr = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
 
                     if (inShiftPrev && inShiftCurr)
                     {
@@ -2216,7 +2232,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                 {
                     foreach (int t in nightShiftSlots)
                     {
-                        if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count))
+                        if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c))
                             continue;
 
                         // Bonus za pauze običnih kontrolora u noćnoj smeni
