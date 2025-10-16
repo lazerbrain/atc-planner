@@ -64,6 +64,11 @@ namespace ATCPlanner.Services
         private Dictionary<(int controller, int timeSlot), IntVar> preferredWorkBlocks = new Dictionary<(int, int), IntVar>();
         private Dictionary<(int controller, int timeSlot), IntVar> fragmentedWorkPenalties = new Dictionary<(int, int), IntVar>();
 
+        private static readonly HashSet<string> NON_OPERATIONAL_SECTORS = new HashSet<string>
+        {
+            "break", "SS", "SUP", "FMP"
+        };
+
         public async Task<OptimizationResponse> OptimizeRosterWithOrTools(string smena, DateTime datum, DataTable konfiguracije, DataTable inicijalniRaspored, List<DateTime> timeSlots,
             int maxExecTime, int? maxOptimalSolution, int? maxZeroShortageSlots, List<string>? selectedOperativeWorkplaces, List<string>? selectedEmployees, bool useManualAssignments = true,
             int? randomSeed = null, bool useRandomization = true)
@@ -1328,15 +1333,17 @@ namespace ATCPlanner.Services
             _logger.LogInformation("SS/SUP mutual exclusion constraints completed.");
         }
 
+
         private void AddGuaranteedWorkForAllControllers(
-      CpModel model,
-      Dictionary<(int, int, string), IntVar> assignments,
-      List<string> controllers,
-      List<DateTime> timeSlots,
-      Dictionary<int, List<string>> requiredSectors,
-      Dictionary<string, ControllerInfo> controllerInfo,
-      Dictionary<int, Dictionary<int, string>> manualAssignmentsByController,
-      bool useManualAssignments)
+            CpModel model,
+            Dictionary<(int, int, string), IntVar> assignments,
+            List<string> controllers,
+            List<DateTime> timeSlots,
+            Dictionary<int, List<string>> requiredSectors,
+            Dictionary<string, ControllerInfo> controllerInfo,
+            Dictionary<int, Dictionary<int, string>> manualAssignmentsByController,
+            DataTable inicijalniRaspored,
+            bool useManualAssignments)
         {
             _logger.LogInformation("Adding guaranteed work constraints for all selected controllers...");
 
@@ -1365,36 +1372,46 @@ namespace ATCPlanner.Services
             }
 
             _logger.LogInformation($"Controllers: {regularControllers.Count} regular, {ssControllers.Count} SS, {supControllers.Count} SUP");
-
             // PRAVILO 1: SVI kontrolori MORAJU raditi bar minimum slotova
             for (int c = 0; c < controllers.Count; c++)
             {
                 var controller = controllerInfo[controllers[c]];
-                var workSlots = new List<IntVar>();
 
-                // Broji manualne radne dodele
+                if ((controller.IsShiftLeader || controller.IsSupervisor) && useManualAssignments)
+                {
+                    _logger.LogDebug($"Skipping minimum work constraint for SS/SUP (with manual assignments): {controllers[c]}");
+                    continue;
+                }
+
+                var workSlots = new List<IntVar>();
                 int manualWorkSlots = 0;
+                int totalAvailableSlots = 0;
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
-                    // *** ISPRAVLJENO: Dodaj controllerIndex parametar ***
+                    // *** PRVO proveri Flag=S koristeći IsFlagS metodu ***
+                    if (IsFlagS(controllers[c], timeSlots[t], inicijalniRaspored))
+                    {
+                        continue;  // Slot sa Flag=S se NE računa kao dostupan
+                    }
+
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c))
                         continue;
 
-                    // Proveri manualne dodele
-                    if (useManualAssignments &&
-                        HasManualAssignment(c, t, manualAssignmentsByController))
+                    // *** Slot je dostupan - povećaj brojač ***
+                    totalAvailableSlots++;
+
+                    if (useManualAssignments && HasManualAssignment(c, t, manualAssignmentsByController))
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
-                        if (manualAssignment != "break")
+
+                        if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
-                            // Ima manuelnu radnu dodelu - računaj je
-                            manualWorkSlots++;
-                            continue; // Preskoči ovaj slot za automatsku dodelu
+                            continue;
                         }
                         else
                         {
-                            // Ima manuelnu pauzu - preskoči ovaj slot
+                            manualWorkSlots++;
                             continue;
                         }
                     }
@@ -1415,34 +1432,33 @@ namespace ATCPlanner.Services
                     }
                 }
 
-                if (workSlots.Count > 0 || manualWorkSlots > 0)
+                if (totalAvailableSlots > 0)
                 {
-                    // Uzmi u obzir manualne radne dodele
-                    int totalAvailableSlots = workSlots.Count + manualWorkSlots;
                     int minWork = Math.Max(1, totalAvailableSlots / 4);
 
-                    // Kontrolor već ima manualne radne dodele koje zadovoljavaju minimum
+                    if (totalAvailableSlots <= 4)
+                    {
+                        minWork = Math.Max(1, totalAvailableSlots / 2);
+                    }
+
                     if (manualWorkSlots >= minWork)
                     {
-                        _logger.LogDebug($"Controller {controllers[c]}: Already has {manualWorkSlots} manual work slots (>= {minWork} required)");
-                        // Ne dodajemo constraint jer je već zadovoljen
+                        _logger.LogDebug($"Controller {controllers[c]}: Already has {manualWorkSlots} manual work slots (>= {minWork} required out of {totalAvailableSlots} available)");
                         continue;
                     }
 
-                    // Treba još automatskih dodela
                     int remainingRequired = minWork - manualWorkSlots;
 
                     if (workSlots.Count > 0)
                     {
                         model.Add(LinearExpr.Sum(workSlots) >= remainingRequired);
                         _logger.LogDebug($"Controller {controllers[c]}: Must work >= {remainingRequired} more slots " +
-                                       $"(has {manualWorkSlots} manual, needs {minWork} total out of {totalAvailableSlots})");
+                                       $"(has {manualWorkSlots} manual, needs {minWork} total out of {totalAvailableSlots} available slots)");
                     }
                     else if (manualWorkSlots < minWork)
                     {
-                        // Nema slobodnih slotova za automatsku dodelu, ali nema dovoljno manuelnih
                         _logger.LogWarning($"Controller {controllers[c]}: Has only {manualWorkSlots} manual work slots " +
-                                         $"but needs {minWork} (25% of {totalAvailableSlots}), and no free slots for automatic assignment");
+                                         $"but needs {minWork} ({(totalAvailableSlots <= 4 ? "50%" : "25%")} of {totalAvailableSlots} available), and no free slots for automatic assignment");
                     }
                 }
             }
@@ -1461,22 +1477,21 @@ namespace ATCPlanner.Services
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
-                    // *** ISPRAVLJENO: Dodaj controllerIndex parametar ***
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c))
                         continue;
 
-                    // Proveri manualne dodele
-                    if (useManualAssignments &&
-                        HasManualAssignment(c, t, manualAssignmentsByController))
+                    if (useManualAssignments && HasManualAssignment(c, t, manualAssignmentsByController))
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
-                        if (manualAssignment != "break")
+
+                        // *** Ignoriši neoperativne sektore ***
+                        if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
-                            manualWorkSlots++;
                             continue;
                         }
                         else
                         {
+                            manualWorkSlots++;
                             continue;
                         }
                     }
@@ -1493,12 +1508,10 @@ namespace ATCPlanner.Services
 
                     if (workSlots.Count > 0)
                     {
-                        // totalWork = automatski slotovi + manualni slotovi
                         model.Add(totalWork == LinearExpr.Sum(workSlots) + manualWorkSlots);
                     }
                     else
                     {
-                        // Samo manualni slotovi
                         model.Add(totalWork == manualWorkSlots);
                     }
 
@@ -1515,22 +1528,21 @@ namespace ATCPlanner.Services
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
-                    // *** ISPRAVLJENO: Dodaj controllerIndex parametar ***
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c))
                         continue;
 
-                    // Proveri manualne dodele
-                    if (useManualAssignments &&
-                        HasManualAssignment(c, t, manualAssignmentsByController))
+                    if (useManualAssignments && HasManualAssignment(c, t, manualAssignmentsByController))
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
-                        if (manualAssignment != "break")
+
+                        // *** Ignoriši neoperativne sektore ***
+                        if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
-                            manualWorkSlots++;
                             continue;
                         }
                         else
                         {
+                            manualWorkSlots++;
                             continue;
                         }
                     }
@@ -1567,22 +1579,21 @@ namespace ATCPlanner.Services
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
-                    // *** ISPRAVLJENO: Dodaj controllerIndex parametar ***
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c))
                         continue;
 
-                    // Proveri manualne dodele
-                    if (useManualAssignments &&
-                        HasManualAssignment(c, t, manualAssignmentsByController))
+                    if (useManualAssignments && HasManualAssignment(c, t, manualAssignmentsByController))
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
-                        if (manualAssignment != "break")
+
+                        // *** Ignoriši neoperativne sektore ***
+                        if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
-                            manualWorkSlots++;
                             continue;
                         }
                         else
                         {
+                            manualWorkSlots++;
                             continue;
                         }
                     }
@@ -1790,7 +1801,7 @@ namespace ATCPlanner.Services
             AddMaximumWorkingConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddBreakConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddMinimumWorkBlockConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
-            AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
+            AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, inicijalniRaspored, useManualAssignments);
             //AddRotationConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
             AddSupervisorShiftLeaderConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
 
