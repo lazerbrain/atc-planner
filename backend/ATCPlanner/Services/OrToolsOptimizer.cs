@@ -382,6 +382,8 @@ namespace ATCPlanner.Services
             return requiredSectors;
         }
 
+        // Zameni CreateAssignmentVariables metodu u OrToolsOptimizer.cs
+
         private Dictionary<(int, int, string), IntVar> CreateAssignmentVariables(CpModel model, List<string> controllers, List<DateTime> timeSlots,
             Dictionary<int, List<string>> requiredSectors)
         {
@@ -399,6 +401,20 @@ namespace ATCPlanner.Services
                     foreach (var sector in requiredSectors[t])
                     {
                         assignments[(c, t, sector)] = model.NewBoolVar($"controller_{c}_slot_{t}_sector_{sector}");
+                    }
+
+                    // *** DODATO: Dodaj sve neoperativne sektore (SS, SUP, FMP) za svaki slot ***
+                    // Ovo omogućava manuelne dodele na ove sektore
+                    foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
+                    {
+                        if (nonOpSector != "break") // break je već dodat
+                        {
+                            var key = (c, t, nonOpSector);
+                            if (!assignments.ContainsKey(key)) // proveri da već nije dodat u requiredSectors
+                            {
+                                assignments[key] = model.NewBoolVar($"controller_{c}_slot_{t}_sector_{nonOpSector}");
+                            }
+                        }
                     }
                 }
             }
@@ -1334,6 +1350,10 @@ namespace ATCPlanner.Services
         }
 
 
+        // Izmeni AddGuaranteedWorkForAllControllers metodu u OrToolsOptimizer.cs
+
+        // Izmeni AddGuaranteedWorkForAllControllers metodu u OrToolsOptimizer.cs
+
         private void AddGuaranteedWorkForAllControllers(
             CpModel model,
             Dictionary<(int, int, string), IntVar> assignments,
@@ -1372,20 +1392,17 @@ namespace ATCPlanner.Services
             }
 
             _logger.LogInformation($"Controllers: {regularControllers.Count} regular, {ssControllers.Count} SS, {supControllers.Count} SUP");
+
+            // ============================================
             // PRAVILO 1: SVI kontrolori MORAJU raditi bar minimum slotova
+            // IZMENA: Više ne preskačemo SS/SUP čak i ako imaju manuelne dodele
+            // ============================================
             for (int c = 0; c < controllers.Count; c++)
             {
                 var controller = controllerInfo[controllers[c]];
-
-                if ((controller.IsShiftLeader || controller.IsSupervisor) && useManualAssignments)
-                {
-                    _logger.LogDebug($"Skipping minimum work constraint for SS/SUP (with manual assignments): {controllers[c]}");
-                    continue;
-                }
-
                 var workSlots = new List<IntVar>();
-                int manualWorkSlots = 0;
                 int totalAvailableSlots = 0;
+                int manualWorkSlots = 0;
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
@@ -1434,16 +1451,29 @@ namespace ATCPlanner.Services
 
                 if (totalAvailableSlots > 0)
                 {
-                    int minWork = Math.Max(1, totalAvailableSlots / 4);
+                    // Različiti minimum za SS/SUP vs obične kontrolore
+                    int minWork;
 
-                    if (totalAvailableSlots <= 4)
+                    if (controller.IsShiftLeader || controller.IsSupervisor)
                     {
-                        minWork = Math.Max(1, totalAvailableSlots / 2);
+                        // SS i SUP: bar 25% dostupnih slotova (manje od običnih)
+                        minWork = Math.Max(1, totalAvailableSlots / 4);
+                        _logger.LogInformation($"{(controller.IsShiftLeader ? "SS" : "SUP")} controller {controllers[c]}: min work = {minWork} slots (25% of {totalAvailableSlots})");
+                    }
+                    else
+                    {
+                        // Obični kontrolori: bar 50% ako ima ≤4 slota, inače 25%
+                        minWork = Math.Max(1, totalAvailableSlots / 4);
+                        if (totalAvailableSlots <= 4)
+                        {
+                            minWork = Math.Max(1, totalAvailableSlots / 2);
+                        }
+                        _logger.LogDebug($"Regular controller {controllers[c]}: min work = {minWork} slots");
                     }
 
                     if (manualWorkSlots >= minWork)
                     {
-                        _logger.LogDebug($"Controller {controllers[c]}: Already has {manualWorkSlots} manual work slots (>= {minWork} required out of {totalAvailableSlots} available)");
+                        _logger.LogDebug($"Controller {controllers[c]}: Already has {manualWorkSlots} manual work slots (>= {minWork} required)");
                         continue;
                     }
 
@@ -1452,18 +1482,21 @@ namespace ATCPlanner.Services
                     if (workSlots.Count > 0)
                     {
                         model.Add(LinearExpr.Sum(workSlots) >= remainingRequired);
-                        _logger.LogDebug($"Controller {controllers[c]}: Must work >= {remainingRequired} more slots " +
-                                       $"(has {manualWorkSlots} manual, needs {minWork} total out of {totalAvailableSlots} available slots)");
+                        _logger.LogInformation($"✓ Controller {controllers[c]}: Must work >= {remainingRequired} more slots " +
+                                               $"(has {manualWorkSlots} manual, needs {minWork} total out of {totalAvailableSlots} available)");
                     }
                     else if (manualWorkSlots < minWork)
                     {
                         _logger.LogWarning($"Controller {controllers[c]}: Has only {manualWorkSlots} manual work slots " +
-                                         $"but needs {minWork} ({(totalAvailableSlots <= 4 ? "50%" : "25%")} of {totalAvailableSlots} available), and no free slots for automatic assignment");
+                                           $"but needs {minWork}, and no free slots for automatic assignment");
                     }
                 }
             }
 
-            // PRAVILO 2: SS i SUP rade MANJE od regularnih kontrolora
+            // ============================================
+            // PRAVILO 2: SS i SUP rade MAKSIMALNO 70% od maksimuma regularnih kontrolora
+            // Ovo ih ne sprečava da rade, samo ograničava da ne rade VIŠE od običnih
+            // ============================================
             var regularWorkloadVars = new List<IntVar>();
             var ssWorkloadVars = new List<IntVar>();
             var supWorkloadVars = new List<IntVar>();
@@ -1484,7 +1517,6 @@ namespace ATCPlanner.Services
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
 
-                        // *** Ignoriši neoperativne sektore ***
                         if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
                             continue;
@@ -1535,7 +1567,6 @@ namespace ATCPlanner.Services
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
 
-                        // *** Ignoriši neoperativne sektore ***
                         if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
                             continue;
@@ -1586,7 +1617,6 @@ namespace ATCPlanner.Services
                     {
                         string manualAssignment = GetManualAssignment(c, t, manualAssignmentsByController)!;
 
-                        // *** Ignoriši neoperativne sektore ***
                         if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
                             continue;
@@ -1642,7 +1672,7 @@ namespace ATCPlanner.Services
                     model.Add(maxWork7 == maxRegularWork * 7);
                     model.Add(ssWork10 <= maxWork7);
 
-                    _logger.LogInformation("SS works max 70% of regular controllers");
+                    _logger.LogInformation("✓ SS works max 70% of regular controllers");
                 }
 
                 // SUP radi maksimalno 70% maksimuma regularnih
@@ -1655,7 +1685,7 @@ namespace ATCPlanner.Services
                     model.Add(maxWork7 == maxRegularWork * 7);
                     model.Add(supWork10 <= maxWork7);
 
-                    _logger.LogInformation("SUP works max 70% of regular controllers");
+                    _logger.LogInformation("✓ SUP works max 70% of regular controllers");
                 }
             }
 
@@ -1698,22 +1728,36 @@ namespace ATCPlanner.Services
             {
                 LogManualAssignments(manualAssignmentsByController, controllers, timeSlots);
 
+                // Debug: Proveri da li SS/SUP imaju manualne dodele
+                _logger.LogInformation("=== SS/SUP Manual Assignments Check ===");
+                foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
+                {
+                    int controllerIndex = controllers.IndexOf(controllerCode);
+                    if (controllerIndex < 0) continue;
+
+                    var controller = controllerInfo[controllerCode];
+                    if (controller.IsShiftLeader || controller.IsSupervisor)
+                    {
+                        _logger.LogWarning($"🔍 {(controller.IsShiftLeader ? "SS" : "SUP")} {controllerCode} " +
+                                          $"has manual assignment at slot {timeSlotIndex}: {sector}");
+                    }
+                }
+                _logger.LogInformation("=== End SS/SUP Check ===");
+
                 // Korak 2: Primeni manuelne dodele kao čvrsta ograničenja
                 foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
                 {
                     int controllerIndex = controllers.IndexOf(controllerCode);
                     if (controllerIndex < 0) continue;
 
-                    // Proveri da li je sektor validan za ovaj slot
-                    if (!requiredSectors[timeSlotIndex].Contains(sector) && sector != "break")
-                    {
-                        _logger.LogWarning($"Manual assignment for controller {controllerCode} at slot {timeSlotIndex} " +
-                                         $"has invalid sector {sector}. Will not enforce this assignment.");
-                        continue;
-                    }
+                    var controller = controllerInfo[controllerCode];
+                    bool isSpecial = controller.IsShiftLeader || controller.IsSupervisor;
 
-                    _logger.LogInformation($"Enforcing manual assignment: Controller {controllerCode} at slot {timeSlotIndex} " +
-                                          $"on sector {sector}");
+                    // *** UKLONJENA PROVERA - sve manualne dodele su validne jer smo kreirali varijable za njih ***
+                    bool isNonOperationalSector = NON_OPERATIONAL_SECTORS.Contains(sector);
+
+                    _logger.LogInformation($"✅ Enforcing manual assignment: {(isSpecial ? (controller.IsShiftLeader ? "SS" : "SUP") : "REG")} " +
+                                          $"Controller {controllerCode} at slot {timeSlotIndex} on sector {sector}");
 
                     if (sector == "break")
                     {
@@ -1725,9 +1769,28 @@ namespace ATCPlanner.Services
                             model.Add(assignments[(controllerIndex, timeSlotIndex, otherSector)] == 0);
                         }
                     }
+                    else if (isNonOperationalSector)
+                    {
+                        // *** NEOPERATIVNI SEKTORI (SS, SUP, FMP) ***
+                        // Varijabla već postoji jer je kreirana u CreateAssignmentVariables
+                        var key = (controllerIndex, timeSlotIndex, sector);
+
+                        // Fiksiraj na 1
+                        model.Add(assignments[key] == 1);
+                        model.Add(assignments[(controllerIndex, timeSlotIndex, "break")] == 0);
+
+                        // Ne sme biti dodeljen regularnim sektorima
+                        foreach (var otherSector in requiredSectors[timeSlotIndex])
+                        {
+                            model.Add(assignments[(controllerIndex, timeSlotIndex, otherSector)] == 0);
+                        }
+
+                        _logger.LogWarning($"🔒 LOCKED: {(controller.IsShiftLeader ? "SS" : "SUP")} {controllerCode} " +
+                                          $"on NON-OPERATIONAL sector {sector} at slot {timeSlotIndex}");
+                    }
                     else
                     {
-                        // Kontrolor je dodeljen sektoru
+                        // Kontrolor je dodeljen REGULARNOM sektoru - HARD CONSTRAINT
                         model.Add(assignments[(controllerIndex, timeSlotIndex, sector)] == 1);
                         model.Add(assignments[(controllerIndex, timeSlotIndex, "break")] == 0);
 
@@ -1738,6 +1801,13 @@ namespace ATCPlanner.Services
                             {
                                 model.Add(assignments[(controllerIndex, timeSlotIndex, otherSector)] == 0);
                             }
+                        }
+
+                        // Extra debug za SS/SUP
+                        if (isSpecial)
+                        {
+                            _logger.LogWarning($"🔒 LOCKED: {(controller.IsShiftLeader ? "SS" : "SUP")} {controllerCode} " +
+                                              $"MUST be on {sector} at slot {timeSlotIndex}");
                         }
                     }
                 }
@@ -1772,6 +1842,14 @@ namespace ATCPlanner.Services
                         {
                             model.Add(assignments[(c, t, sector)] == 0);
                         }
+                        // Dodaj i neoperativne sektore
+                        foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
+                        {
+                            if (nonOpSector != "break")
+                            {
+                                model.Add(assignments[(c, t, nonOpSector)] == 0);
+                            }
+                        }
                     }
                     else
                     {
@@ -1784,11 +1862,33 @@ namespace ATCPlanner.Services
                             {
                                 model.Add(assignments[(c, t, sector)] == 0);
                             }
+                            // Dodaj i neoperativne sektore
+                            foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
+                            {
+                                if (nonOpSector != "break")
+                                {
+                                    model.Add(assignments[(c, t, nonOpSector)] == 0);
+                                }
+                            }
                         }
                         else
                         {
+                            // *** IZMENA: Dodaj SVE moguće sektore (regular + neoperativni) ***
                             var taskVars = new List<IntVar> { assignments[(c, t, "break")] };
+
+                            // Dodaj regularne sektore
                             taskVars.AddRange(requiredSectors[t].Select(s => assignments[(c, t, s)]));
+
+                            // Dodaj neoperativne sektore (SS, SUP, FMP)
+                            foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
+                            {
+                                if (nonOpSector != "break")
+                                {
+                                    taskVars.Add(assignments[(c, t, nonOpSector)]);
+                                }
+                            }
+
+                            // Kontrolor može biti dodeljen TAČNO jednom: break ILI regular sektor ILI neoperativni sektor
                             model.Add(LinearExpr.Sum(taskVars) == 1);
                         }
                     }
