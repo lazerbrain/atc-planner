@@ -1790,7 +1790,7 @@ namespace ATCPlanner.Services
             AddMaximumWorkingConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddBreakConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             AddMinimumWorkBlockConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
-       //     AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
+            AddGuaranteedWorkForAllControllers(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
             //AddRotationConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController);
             AddSupervisorShiftLeaderConstraints(model, assignments, controllers, timeSlots, requiredSectors, controllerInfo, manualAssignmentsByController, useManualAssignments);
 
