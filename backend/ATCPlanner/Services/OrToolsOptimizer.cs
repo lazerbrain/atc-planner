@@ -66,7 +66,7 @@ namespace ATCPlanner.Services
 
         private static readonly HashSet<string> NON_OPERATIONAL_SECTORS = new HashSet<string>
         {
-            "break", "SS", "SUP", "FMP"
+            "break", "SS", "SUP", "FMP", "SBY", "BRF"
         };
 
         public async Task<OptimizationResponse> OptimizeRosterWithOrTools(string smena, DateTime datum, DataTable konfiguracije, DataTable inicijalniRaspored, List<DateTime> timeSlots,
@@ -1350,9 +1350,6 @@ namespace ATCPlanner.Services
         }
 
 
-        // Izmeni AddGuaranteedWorkForAllControllers metodu u OrToolsOptimizer.cs
-
-        // Izmeni AddGuaranteedWorkForAllControllers metodu u OrToolsOptimizer.cs
 
         private void AddGuaranteedWorkForAllControllers(
             CpModel model,
@@ -1388,6 +1385,10 @@ namespace ATCPlanner.Services
                 else
                 {
                     regularControllers.Add(c);
+                    if (controller.IsFMP)
+                    {
+                        _logger.LogInformation($"✓ FMP controller: {controllers[c]} (treated as regular)");
+                    }
                 }
             }
 
@@ -1458,17 +1459,27 @@ namespace ATCPlanner.Services
                     {
                         // SS i SUP: bar 25% dostupnih slotova (manje od običnih)
                         minWork = Math.Max(1, totalAvailableSlots / 4);
+                        string controllerType = controller.IsShiftLeader ? "SS" : "SUP";
                         _logger.LogInformation($"{(controller.IsShiftLeader ? "SS" : "SUP")} controller {controllers[c]}: min work = {minWork} slots (25% of {totalAvailableSlots})");
                     }
                     else
                     {
                         // Obični kontrolori: bar 50% ako ima ≤4 slota, inače 25%
+                        // FMP i regularni kontrolori
                         minWork = Math.Max(1, totalAvailableSlots / 4);
                         if (totalAvailableSlots <= 4)
                         {
                             minWork = Math.Max(1, totalAvailableSlots / 2);
                         }
-                        _logger.LogDebug($"Regular controller {controllers[c]}: min work = {minWork} slots");
+
+                        if (controller.IsFMP)
+                        {
+                            _logger.LogDebug($"FMP controller {controllers[c]}: min work = {minWork} slots (same as regular)");
+                        }
+                        else
+                        {
+                            _logger.LogDebug($"Regular controller {controllers[c]}: min work = {minWork} slots");
+                        }
                     }
 
                     if (manualWorkSlots >= minWork)
@@ -1745,52 +1756,59 @@ namespace ATCPlanner.Services
                 _logger.LogInformation("=== End SS/SUP Check ===");
 
                 // Korak 2: Primeni manuelne dodele kao čvrsta ograničenja
+                // Korak 2: Primeni manuelne dodele kao čvrsta ograničenja
                 foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
                 {
                     int controllerIndex = controllers.IndexOf(controllerCode);
                     if (controllerIndex < 0) continue;
 
                     var controller = controllerInfo[controllerCode];
-                    bool isSpecial = controller.IsShiftLeader || controller.IsSupervisor;
-
-                    // *** UKLONJENA PROVERA - sve manualne dodele su validne jer smo kreirali varijable za njih ***
+                    bool isSpecial = controller.IsShiftLeader || controller.IsSupervisor; // UKLONI IsFMP odavde
                     bool isNonOperationalSector = NON_OPERATIONAL_SECTORS.Contains(sector);
 
-                    _logger.LogInformation($"✅ Enforcing manual assignment: {(isSpecial ? (controller.IsShiftLeader ? "SS" : "SUP") : "REG")} " +
+                    string controllerType = controller.IsShiftLeader ? "SS" :
+                                           controller.IsSupervisor ? "SUP" :
+                                           controller.IsFMP ? "FMP" : "REG";
+
+                    _logger.LogInformation($"✅ Processing manual assignment: {controllerType} " +
                                           $"Controller {controllerCode} at slot {timeSlotIndex} on sector {sector}");
+
+                    // *** KLJUČNA IZMENA: Ne forsiramo SS/SUP/FMP na ne-operativnim sektorima ***
+                    // Ali FMP se ovde tretira specijalno - samo ako je "FMP" sektor
+                    if ((isSpecial && isNonOperationalSector) ||
+                        (controller.IsFMP && sector == "FMP")) // FMP sektor se ne forsira
+                    {
+                        _logger.LogInformation($"⚠️ SKIPPING hard constraint for {controllerType} {controllerCode} " +
+                                              $"on non-operational sector {sector} at slot {timeSlotIndex} - will be handled softly in objective");
+
+                        continue; // NE dodavaj hard constraint
+                    }
 
                     if (sector == "break")
                     {
-                        // Kontrolor je na pauzi
+                        // Break je uvek hard constraint
                         model.Add(assignments[(controllerIndex, timeSlotIndex, "break")] == 1);
+
                         // Ne sme biti dodeljen nijednom sektoru
                         foreach (var otherSector in requiredSectors[timeSlotIndex])
                         {
                             model.Add(assignments[(controllerIndex, timeSlotIndex, otherSector)] == 0);
                         }
-                    }
-                    else if (isNonOperationalSector)
-                    {
-                        // *** NEOPERATIVNI SEKTORI (SS, SUP, FMP) ***
-                        // Varijabla već postoji jer je kreirana u CreateAssignmentVariables
-                        var key = (controllerIndex, timeSlotIndex, sector);
 
-                        // Fiksiraj na 1
-                        model.Add(assignments[key] == 1);
-                        model.Add(assignments[(controllerIndex, timeSlotIndex, "break")] == 0);
-
-                        // Ne sme biti dodeljen regularnim sektorima
-                        foreach (var otherSector in requiredSectors[timeSlotIndex])
+                        // Dodaj i ne-operativne sektore
+                        foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
                         {
-                            model.Add(assignments[(controllerIndex, timeSlotIndex, otherSector)] == 0);
+                            if (nonOpSector != "break")
+                            {
+                                model.Add(assignments[(controllerIndex, timeSlotIndex, nonOpSector)] == 0);
+                            }
                         }
 
-                        _logger.LogWarning($"🔒 LOCKED: {(controller.IsShiftLeader ? "SS" : "SUP")} {controllerCode} " +
-                                          $"on NON-OPERATIONAL sector {sector} at slot {timeSlotIndex}");
+                        _logger.LogInformation($"🔒 LOCKED: Controller {controllerCode} on BREAK at slot {timeSlotIndex}");
                     }
                     else
                     {
-                        // Kontrolor je dodeljen REGULARNOM sektoru - HARD CONSTRAINT
+                        // RADNI SEKTOR - uvek hard constraint (za sve kontrolore)
                         model.Add(assignments[(controllerIndex, timeSlotIndex, sector)] == 1);
                         model.Add(assignments[(controllerIndex, timeSlotIndex, "break")] == 0);
 
@@ -1803,12 +1821,17 @@ namespace ATCPlanner.Services
                             }
                         }
 
-                        // Extra debug za SS/SUP
-                        if (isSpecial)
+                        // Ne sme biti dodeljen ne-operativnim sektorima
+                        foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
                         {
-                            _logger.LogWarning($"🔒 LOCKED: {(controller.IsShiftLeader ? "SS" : "SUP")} {controllerCode} " +
-                                              $"MUST be on {sector} at slot {timeSlotIndex}");
+                            if (nonOpSector != "break")
+                            {
+                                model.Add(assignments[(controllerIndex, timeSlotIndex, nonOpSector)] == 0);
+                            }
                         }
+
+                        _logger.LogInformation($"🔒 LOCKED: {controllerType} {controllerCode} " +
+                                              $"MUST be on {sector} at slot {timeSlotIndex}");
                     }
                 }
             }
@@ -1827,7 +1850,7 @@ namespace ATCPlanner.Services
                 }
             }
 
-            // 2. OSNOVNO: Svaki kontrolor je dodeljen tačno jednom sektoru ili pauzi
+            //2.OSNOVNO: Svaki kontrolor je dodeljen tačno jednom sektoru ili pauzi
             for (int c = 0; c < controllers.Count; c++)
             {
                 for (int t = 0; t < timeSlots.Count; t++)
@@ -2159,6 +2182,7 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             // Inicijalizacija liste termina za funkciju cilja
             var objectiveTerms = new List<LinearExpr>();
 
+
             // ============================================================================
             // 1. PENALI ZA NEPOKRIVENE SEKTORE (NAJVIŠI PRIORITET)
             // ============================================================================
@@ -2360,6 +2384,8 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                     }
                 }
             }
+
+
 
             // Bonusi/penali za duge pauze i rad u noćnoj smeni
             foreach (var entry in nightShiftLongBreaks)
