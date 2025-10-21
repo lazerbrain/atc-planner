@@ -1404,6 +1404,7 @@ namespace ATCPlanner.Services
                 var workSlots = new List<IntVar>();
                 int totalAvailableSlots = 0;
                 int manualWorkSlots = 0;
+                int manualNonOperationalSlots = 0; // Brojač svih neoperativnih dodela (FMP, SS, SUP, break)
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
@@ -1425,15 +1426,20 @@ namespace ATCPlanner.Services
 
                         if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
+                            // Slot je ručno dodeljen neoperativnom sektoru (FMP, SS, SUP, break, itd.)
+                            // Ovaj slot se NE računa u workSlots jer je fiksan
+                            manualNonOperationalSlots++;
                             continue;
                         }
                         else
                         {
+                            // Slot je ručno dodeljen operativnom sektoru
                             manualWorkSlots++;
                             continue;
                         }
                     }
 
+                    // *** SAMO potpuno slobodni slotovi (bez manuelne dodele) se dodaju u workSlots ***
                     var isWorking = model.NewBoolVar($"is_working_{c}_{t}");
                     var sectorVars = new List<IntVar>();
 
@@ -1460,7 +1466,7 @@ namespace ATCPlanner.Services
                         // SS i SUP: bar 25% dostupnih slotova (manje od običnih)
                         minWork = Math.Max(1, totalAvailableSlots / 4);
                         string controllerType = controller.IsShiftLeader ? "SS" : "SUP";
-                        _logger.LogInformation($"{(controller.IsShiftLeader ? "SS" : "SUP")} controller {controllers[c]}: min work = {minWork} slots (25% of {totalAvailableSlots})");
+                        _logger.LogInformation($"{controllerType} controller {controllers[c]}: min work = {minWork} slots (25% of {totalAvailableSlots})");
                     }
                     else
                     {
@@ -1482,6 +1488,7 @@ namespace ATCPlanner.Services
                         }
                     }
 
+                    // *** Proveri da li je već ispunjen minimum ***
                     if (manualWorkSlots >= minWork)
                     {
                         _logger.LogDebug($"Controller {controllers[c]}: Already has {manualWorkSlots} manual work slots (>= {minWork} required)");
@@ -1489,17 +1496,53 @@ namespace ATCPlanner.Services
                     }
 
                     int remainingRequired = minWork - manualWorkSlots;
+                    int freeSlots = workSlots.Count;
 
-                    if (workSlots.Count > 0)
+                    // *** KLJUČNA IZMENA: Samo dodaj constraint ako ima SLOBODNIH slotova ***
+                    if (freeSlots > 0)
                     {
+                        // Ima slobodnih slotova - može se dodati constraint
                         model.Add(LinearExpr.Sum(workSlots) >= remainingRequired);
-                        _logger.LogInformation($"✓ Controller {controllers[c]}: Must work >= {remainingRequired} more slots " +
-                                               $"(has {manualWorkSlots} manual, needs {minWork} total out of {totalAvailableSlots} available)");
+
+                        if (controller.IsFMP)
+                        {
+                            _logger.LogInformation($"✓ FMP Controller {controllers[c]}: Must work >= {remainingRequired} more slots " +
+                                                  $"(has {manualWorkSlots} manual operational, {freeSlots} free slots, " +
+                                                  $"{manualNonOperationalSlots} locked non-operational, " +
+                                                  $"needs {minWork} total out of {totalAvailableSlots} available)");
+                        }
+                        else
+                        {
+                            _logger.LogInformation($"✓ Controller {controllers[c]}: Must work >= {remainingRequired} more slots " +
+                                                  $"(has {manualWorkSlots} manual, {freeSlots} free, needs {minWork} total out of {totalAvailableSlots} available)");
+                        }
                     }
-                    else if (manualWorkSlots < minWork)
+                    else
                     {
-                        _logger.LogWarning($"Controller {controllers[c]}: Has only {manualWorkSlots} manual work slots " +
-                                           $"but needs {minWork}, and no free slots for automatic assignment");
+                        // *** Nema slobodnih slotova - ne može se dodati constraint ***
+                        if (manualWorkSlots < minWork)
+                        {
+                            // Nema dovoljno operativnog rada i nema slobodnih slotova
+                            if (controller.IsFMP)
+                            {
+                                _logger.LogInformation($"ℹ️ FMP Controller {controllers[c]}: Has {manualWorkSlots} manual operational work slots, " +
+                                                      $"needs {minWork} minimum, but NO free slots available " +
+                                                      $"({manualNonOperationalSlots} slots locked as FMP non-operational). " +
+                                                      $"Skipping work constraint - optimization will respect locked slots.");
+                            }
+                            else
+                            {
+                                _logger.LogWarning($"⚠️ Controller {controllers[c]}: Has only {manualWorkSlots} manual work slots, " +
+                                                  $"needs {minWork}, but no free slots for automatic assignment " +
+                                                  $"({manualNonOperationalSlots} non-operational slots).");
+                            }
+                        }
+                        else
+                        {
+                            // Ima dovoljno operativnog rada kroz manuelne dodele
+                            _logger.LogDebug($"Controller {controllers[c]}: All requirements satisfied via manual assignments " +
+                                           $"({manualWorkSlots} manual operational >= {minWork} required)");
+                        }
                     }
                 }
             }
@@ -1835,6 +1878,7 @@ namespace ATCPlanner.Services
                     }
                 }
             }
+
 
             // 1. OSNOVNO: Svaki sektor ima najviše jednog kontrolora
             for (int t = 0; t < timeSlots.Count; t++)
