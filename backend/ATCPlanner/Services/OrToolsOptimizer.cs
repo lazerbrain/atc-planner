@@ -1463,10 +1463,20 @@ namespace ATCPlanner.Services
 
                     if (controller.IsShiftLeader || controller.IsSupervisor)
                     {
+                        // *** IZMENA: SS i SUP sa manuelnim dodelama ne moraju ispunjavati minWork constraint ***
+                        // Ako imaju manuelne neoperativne dodele (SS, SUP sektore), preskoči postavljanje minWork
+                        if (manualNonOperationalSlots > 0)
+                        {
+                            string controllerType = controller.IsShiftLeader ? "SS" : "SUP";
+                            _logger.LogInformation($"{controllerType} controller {controllers[c]}: Has {manualNonOperationalSlots} manual non-operational slots. " +
+                                                  $"Skipping minWork constraint for manual assignments.");
+                            continue; // Preskoči postavljanje constraint-a
+                        }
+
                         // SS i SUP: bar 25% dostupnih slotova (manje od običnih)
                         minWork = Math.Max(1, totalAvailableSlots / 4);
-                        string controllerType = controller.IsShiftLeader ? "SS" : "SUP";
-                        _logger.LogInformation($"{controllerType} controller {controllers[c]}: min work = {minWork} slots (25% of {totalAvailableSlots})");
+                        string controllerType2 = controller.IsShiftLeader ? "SS" : "SUP";
+                        _logger.LogInformation($"{controllerType2} controller {controllers[c]}: min work = {minWork} slots (25% of {totalAvailableSlots})");
                     }
                     else
                     {
