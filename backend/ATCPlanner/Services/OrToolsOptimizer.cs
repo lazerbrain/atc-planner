@@ -1621,6 +1621,7 @@ namespace ATCPlanner.Services
                 var controller = controllerInfo[controllers[c]];
                 var workSlots = new List<IntVar>();
                 int manualWorkSlots = 0;
+                int manualNonOperationalSlots = 0; // Brojač neoperativnih dodela
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
@@ -1633,6 +1634,7 @@ namespace ATCPlanner.Services
 
                         if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
+                            manualNonOperationalSlots++; // Broji neoperativne dodele
                             continue;
                         }
                         else
@@ -1646,6 +1648,16 @@ namespace ATCPlanner.Services
                     {
                         workSlots.Add(assignments[(c, t, sector)]);
                     }
+                }
+
+                // *** KLJUČNA IZMENA: Preskači SS sa manual neoperativnim dodelama ***
+                // SS koji ima manual SS/SUP/FMP dodele ne treba da bude u "70%" constraint-u
+                // jer ne radi operativno već je na nadzoru
+                if (manualNonOperationalSlots > 0)
+                {
+                    _logger.LogInformation($"SS controller {controllers[c]}: Skipping from '70% constraint' " +
+                                          $"(has {manualNonOperationalSlots} manual non-operational slots)");
+                    continue; // Ne dodaj u ssWorkloadVars
                 }
 
                 if (workSlots.Count > 0 || manualWorkSlots > 0)
@@ -1671,6 +1683,7 @@ namespace ATCPlanner.Services
                 var controller = controllerInfo[controllers[c]];
                 var workSlots = new List<IntVar>();
                 int manualWorkSlots = 0;
+                int manualNonOperationalSlots = 0; // Brojač neoperativnih dodela
 
                 for (int t = 0; t < timeSlots.Count; t++)
                 {
@@ -1683,6 +1696,7 @@ namespace ATCPlanner.Services
 
                         if (NON_OPERATIONAL_SECTORS.Contains(manualAssignment))
                         {
+                            manualNonOperationalSlots++; // Broji neoperativne dodele
                             continue;
                         }
                         else
@@ -1696,6 +1710,16 @@ namespace ATCPlanner.Services
                     {
                         workSlots.Add(assignments[(c, t, sector)]);
                     }
+                }
+
+                // *** KLJUČNA IZMENA: Preskači SUP sa manual neoperativnim dodelama ***
+                // SUP koji ima manual SUP/SS/FMP dodele ne treba da bude u "70%" constraint-u
+                // jer ne radi operativno već je na nadzoru
+                if (manualNonOperationalSlots > 0)
+                {
+                    _logger.LogInformation($"SUP controller {controllers[c]}: Skipping from '70% constraint' " +
+                                          $"(has {manualNonOperationalSlots} manual non-operational slots)");
+                    continue; // Ne dodaj u supWorkloadVars
                 }
 
                 if (workSlots.Count > 0 || manualWorkSlots > 0)
