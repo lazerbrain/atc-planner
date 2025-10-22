@@ -1508,11 +1508,26 @@ namespace ATCPlanner.Services
                     int remainingRequired = minWork - manualWorkSlots;
                     int freeSlots = workSlots.Count;
 
-                    // *** KLJUČNA IZMENA: Samo dodaj constraint ako ima SLOBODNIH slotova I remainingRequired > 0 ***
-                    // Ako je remainingRequired <= 0, constraint nije potreban (već ima dovoljno rada)
+                    // *** KLJUČNA IZMENA: Samo dodaj constraint ako je IZVODLJIV ***
+                    // 1. remainingRequired > 0 (još uvek treba rada)
+                    // 2. freeSlots > 0 (postoje slobodni slotovi)
+                    // 3. remainingRequired <= freeSlots (nije nemoguće ispuniti zahtev)
                     if (freeSlots > 0 && remainingRequired > 0)
                     {
-                        // Ima slobodnih slotova - može se dodati constraint
+                        // Ako je remainingRequired > freeSlots, constraint je nemoguć - preskoči ga
+                        if (remainingRequired > freeSlots)
+                        {
+                            string controllerType = controller.IsShiftLeader ? "SS" :
+                                                   controller.IsSupervisor ? "SUP" :
+                                                   controller.IsFMP ? "FMP" : "REG";
+                            _logger.LogWarning($"⚠️ {controllerType} Controller {controllers[c]}: " +
+                                             $"Needs {remainingRequired} more work slots but only has {freeSlots} free slots " +
+                                             $"({manualNonOperationalSlots} locked to non-operational). " +
+                                             $"Skipping minWork constraint to avoid INFEASIBLE.");
+                            continue;
+                        }
+
+                        // Ima slobodnih slotova i constraint je izvodljiv - dodaj ga
                         model.Add(LinearExpr.Sum(workSlots) >= remainingRequired);
 
                         if (controller.IsFMP)
