@@ -382,8 +382,6 @@ namespace ATCPlanner.Services
             return requiredSectors;
         }
 
-        // Zameni CreateAssignmentVariables metodu u OrToolsOptimizer.cs
-
         private Dictionary<(int, int, string), IntVar> CreateAssignmentVariables(CpModel model, List<string> controllers, List<DateTime> timeSlots,
             Dictionary<int, List<string>> requiredSectors)
         {
@@ -403,7 +401,7 @@ namespace ATCPlanner.Services
                         assignments[(c, t, sector)] = model.NewBoolVar($"controller_{c}_slot_{t}_sector_{sector}");
                     }
 
-                    // *** DODATO: Dodaj sve neoperativne sektore (SS, SUP, FMP) za svaki slot ***
+                    // Dodaj sve neoperativne sektore (SS, SUP, FMP) za svaki slot ***
                     // Ovo omogućava manuelne dodele na ove sektore
                     foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
                     {
@@ -448,15 +446,6 @@ namespace ATCPlanner.Services
         }
 
         /// <summary>
-        /// Proverava da li se dodela kontrolora može modifikovati (nema manuelnu dodelu)
-        /// </summary>
-        private bool CanModifyAssignment(int controllerIndex, int timeSlot,
-            Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
-        {
-            return !HasManualAssignment(controllerIndex, timeSlot, manualAssignmentsByController);
-        }
-
-        /// <summary>
         /// Vraća manuelnu dodelu kontrolora za određeni slot, ili null ako ne postoji
         /// </summary>
         private string? GetManualAssignment(int controllerIndex, int timeSlot,
@@ -469,76 +458,6 @@ namespace ATCPlanner.Services
             return null;
         }
 
-        /// <summary>
-        /// Proverava da li je sektor već manuelno dodeljen nekom kontroloru
-        /// </summary>
-        private bool IsSectorManuallyAssigned(int timeSlot, string sector,
-            Dictionary<(int timeSlot, string sector), int> manualAssignmentMap)
-        {
-            return manualAssignmentMap.ContainsKey((timeSlot, sector));
-        }
-
-        /// <summary>
-        /// Vraća indeks kontrolora koji je manuelno dodeljen sektoru
-        /// </summary>
-        private int? GetControllerAssignedToSector(int timeSlot, string sector,
-            Dictionary<(int timeSlot, string sector), int> manualAssignmentMap)
-        {
-            if (manualAssignmentMap.TryGetValue((timeSlot, sector), out int controllerIndex))
-            {
-                return controllerIndex;
-            }
-            return null;
-        }
-
-        /// <summary>
-        /// Kreira mapu manuelnih dodela po slotovima i sektorima
-        /// </summary>
-        private Dictionary<(int timeSlot, string sector), int> CreateManualAssignmentMap(
-            List<(string controllerCode, int timeSlotIndex, string sector)> manualAssignments,
-            List<string> controllers,
-            Dictionary<int, List<string>> requiredSectors)
-        {
-            var map = new Dictionary<(int timeSlot, string sector), int>();
-
-            foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
-            {
-                int controllerIndex = controllers.IndexOf(controllerCode);
-                if (controllerIndex >= 0 && requiredSectors[timeSlotIndex].Contains(sector))
-                {
-                    map[(timeSlotIndex, sector)] = controllerIndex;
-                }
-            }
-
-            return map;
-        }
-
-        /// <summary>
-        /// Proverava da li postoji konflikt između manuelnih dodela i predloženog ograničenja
-        /// </summary>
-        private bool HasManualAssignmentConflict(int controllerIndex, int startSlot, int endSlot,
-            string requiredState, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController, List<DateTime> timeSlots)
-        {
-            for (int t = startSlot; t <= endSlot && t < timeSlots.Count; t++)
-            {
-                if (HasManualAssignment(controllerIndex, t, manualAssignmentsByController))
-                {
-                    string assignment = manualAssignmentsByController[controllerIndex][t];
-
-                    // Proveri da li je manuelna dodela u konfliktu sa zahtevom
-                    if (requiredState == "break" && assignment != "break")
-                    {
-                        return true; // Konflikt: treba pauza ali je dodeljen sektoru
-                    }
-                    else if (requiredState == "work" && assignment == "break")
-                    {
-                        return true; // Konflikt: treba da radi ali je na pauzi
-                    }
-                }
-            }
-
-            return false;
-        }
 
         /// <summary>
         /// Loguje sve manuelne dodele za debugging
