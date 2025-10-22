@@ -1826,6 +1826,16 @@ namespace ATCPlanner.Services
                     _logger.LogInformation($"✅ Processing manual assignment: {controllerType} " +
                                           $"Controller {controllerCode} at slot {timeSlotIndex} on sector {sector}");
 
+                    // *** KLJUČNO: Neoperativni sektori (SS, SUP, FMP) se tretiraju kao SOFT constraint ***
+                    // Razlog: Hard constraint može kreirati INFEASIBLE situaciju sa drugim constraint-ima
+                    // Optimizer će ih respektovati kroz soft penale u objective funkciji
+                    if (isNonOperationalSector)
+                    {
+                        _logger.LogInformation($"ℹ️ SOFT: {controllerType} {controllerCode} " +
+                                              $"on non-operational sector {sector} at slot {timeSlotIndex} - handled softly in objective");
+                        continue; // NE dodavaj hard constraint, tretirati kao soft
+                    }
+
                     if (sector == "break")
                     {
                         // Break je uvek hard constraint
@@ -1847,30 +1857,6 @@ namespace ATCPlanner.Services
                         }
 
                         _logger.LogInformation($"🔒 LOCKED: Controller {controllerCode} on BREAK at slot {timeSlotIndex}");
-                    }
-                    else if (isNonOperationalSector)
-                    {
-                        // *** NEOPERATIVNI SEKTORI (SS, SUP, FMP) - hard constraint ***
-                        model.Add(assignments[(controllerIndex, timeSlotIndex, sector)] == 1);
-                        model.Add(assignments[(controllerIndex, timeSlotIndex, "break")] == 0);
-
-                        // Ne sme biti dodeljen radnim sektorima
-                        foreach (var otherSector in requiredSectors[timeSlotIndex])
-                        {
-                            model.Add(assignments[(controllerIndex, timeSlotIndex, otherSector)] == 0);
-                        }
-
-                        // Ne sme biti dodeljen drugim neoperativnim sektorima
-                        foreach (var nonOpSector in NON_OPERATIONAL_SECTORS)
-                        {
-                            if (nonOpSector != sector && nonOpSector != "break")
-                            {
-                                model.Add(assignments[(controllerIndex, timeSlotIndex, nonOpSector)] == 0);
-                            }
-                        }
-
-                        _logger.LogInformation($"🔒 LOCKED: {controllerType} {controllerCode} " +
-                                              $"MUST be on NON-OP sector {sector} at slot {timeSlotIndex}");
                     }
                     else
                     {
