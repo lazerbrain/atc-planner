@@ -1333,6 +1333,11 @@ namespace ATCPlanner.Services
                         continue;  // Slot sa Flag=S se NE računa kao dostupan
                     }
 
+                    if (IsNonOperationalSector(controllers[c], timeSlots[t], inicijalniRaspored))
+                    {
+                        continue;
+                    }
+
                     if (!IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c))
                         continue;
 
@@ -1841,7 +1846,8 @@ namespace ATCPlanner.Services
                     {
                         //Proveri Flag = "S"
                         bool isFlagS = this.IsFlagS(controllers[c], timeSlots[t], inicijalniRaspored);
-                        if (isFlagS)
+                        bool isNonOperationalSector = this.IsNonOperationalSector(controllers[c], timeSlots[t], inicijalniRaspored);
+                        if (isFlagS || isNonOperationalSector)
                         {
                             model.Add(assignments[(c, t, "break")] == 1);
                             foreach (var sector in requiredSectors[t])
@@ -2114,6 +2120,33 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             return false;
         }
 
+        private bool IsNonOperationalSector(string controllerCode, DateTime timeSlot, DataTable inicijalniRaspored)
+        {
+            var controllerShifts = inicijalniRaspored.AsEnumerable().Where(row => row.Field<string>("sifra") == controllerCode).ToList();
+
+            foreach (var shift in controllerShifts)
+            {
+                DateTime shiftStart = shift.Field<DateTime>("datumOd");
+                DateTime shiftEnd = shift.Field<DateTime>("datumDo");
+                string sector = shift.Field<string>("sektor")!;
+
+                //if (sektor == "SUP" && timeSlot >= shiftStart && timeSlot < shiftEnd)
+                //{
+                //    _logger.LogDebug($"Controller {controllerCode} has sector SUP at time {timeSlot}");
+                //    return true;
+                //}
+                if (NON_OPERATIONAL_SECTORS.Contains(sector) && timeSlot >= shiftStart && timeSlot < shiftEnd)
+                {
+                    _logger.LogDebug($"Controller {controllerCode} has sector {sector} at time {timeSlot}");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+
+
         private LinearExpr DefineObjective(CpModel model, Dictionary<(int, int, string), IntVar> assignments, List<string> controllers, List<DateTime> timeSlots,
             Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo, DataTable inicijalniRaspored, 
             Dictionary<int, Dictionary<int, string>> manualAssignmentsByController, bool useManualAssignments)
@@ -2161,8 +2194,9 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                             var controller = controllerInfo[controllers[c]];
                             bool inShift = IsInShift(controller, timeSlots[t], t, timeSlots.Count, manualAssignmentsByController, c);
                             bool isFlagS = IsFlagS(controllers[c], timeSlots[t], inicijalniRaspored);
+                            bool isNonOperationalSector = IsNonOperationalSector(controllers[c], timeSlots[t], inicijalniRaspored);
 
-                            if (inShift && !isFlagS)
+                            if (inShift && !isFlagS && !isNonOperationalSector)
                             {
                                 sectorVars.Add(assignment);
                             }
