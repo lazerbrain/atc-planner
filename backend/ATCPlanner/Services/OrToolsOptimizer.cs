@@ -1508,8 +1508,9 @@ namespace ATCPlanner.Services
                     int remainingRequired = minWork - manualWorkSlots;
                     int freeSlots = workSlots.Count;
 
-                    // *** KLJUČNA IZMENA: Samo dodaj constraint ako ima SLOBODNIH slotova ***
-                    if (freeSlots > 0)
+                    // *** KLJUČNA IZMENA: Samo dodaj constraint ako ima SLOBODNIH slotova I remainingRequired > 0 ***
+                    // Ako je remainingRequired <= 0, constraint nije potreban (već ima dovoljno rada)
+                    if (freeSlots > 0 && remainingRequired > 0)
                     {
                         // Ima slobodnih slotova - može se dodati constraint
                         model.Add(LinearExpr.Sum(workSlots) >= remainingRequired);
