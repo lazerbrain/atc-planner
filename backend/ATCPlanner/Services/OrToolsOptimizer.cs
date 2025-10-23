@@ -519,7 +519,7 @@ namespace ATCPlanner.Services
                             if (prevAssignment != "break" && currAssignment != "break")
                             {
                                 string prevBase = prevAssignment.Length >= 2 ? prevAssignment.Substring(0, 2) : prevAssignment;
-                                string currBase = currAssignment.Length >= 2 ? prevAssignment.Substring(0, 2) : currAssignment;
+                                string currBase = currAssignment.Length >= 2 ? currAssignment.Substring(0, 2) : currAssignment;
 
                                 if (prevBase != currBase)
                                 {
@@ -2725,6 +2725,24 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
             _logger.LogError("- Total controllers: {Total}", totalControllers);
             _logger.LogError("- Max sectors per slot: {MaxSectors}", maxSectorsInSlot);
 
+            var manualAssignments = IdentifyManualAssignments(inicijalniRaspored, controllers, timeSlots);
+            var manualAssignmentsByController = new Dictionary<int, Dictionary<int, string>>();
+
+            foreach (var (controllerCode, timeSlotIndex, sector) in manualAssignments)
+            {
+                int controllerIndex = controllers.IndexOf(controllerCode);
+                if (controllerIndex < 0) continue;
+
+                if (!manualAssignmentsByController.ContainsKey(controllerIndex))
+                {
+                    manualAssignmentsByController[controllerIndex] = new Dictionary<int, string>();
+                }
+                manualAssignmentsByController[controllerIndex][timeSlotIndex] = sector;
+            }
+
+            EnhancedInfeasibilityAnalysis(controllers, timeSlots, requiredSectors,
+                                           controllerInfo, inicijalniRaspored, manualAssignmentsByController);
+
             if (totalControllers < maxSectorsInSlot)
             {
                 _logger.LogError("FUNDAMENTAL PROBLEM: Not enough controllers overall!");
@@ -2773,6 +2791,152 @@ private void AddEmergencyConstraints(CpModel model, Dictionary<(int, int, string
                         t, timeSlots[t].ToString("HH:mm"), outOfShift, flagSCounts[t], available, required);
                 }
             }
+        }
+
+        private void EnhancedInfeasibilityAnalysis(List<string> controllers, List<DateTime> timeSlots,
+    Dictionary<int, List<string>> requiredSectors, Dictionary<string, ControllerInfo> controllerInfo,
+    DataTable inicijalniRaspored, Dictionary<int, Dictionary<int, string>> manualAssignmentsByController)
+        {
+            _logger.LogError("=== ENHANCED INFEASIBILITY ANALYSIS ===");
+
+            // Analiza po slotovima
+            for (int t = 0; t < timeSlots.Count; t++)
+            {
+                DateTime slotTime = timeSlots[t];
+                var required = requiredSectors[t];
+
+                _logger.LogError($"\n--- SLOT {t} ({slotTime:HH:mm}) ---");
+                _logger.LogError($"Required sectors ({required.Count}): {string.Join(", ", required)}");
+
+                // Broji dostupne kontrolore
+                int totalAvailable = 0;
+                int flagSCount = 0;
+                int outOfShiftCount = 0;
+                int manuallyLocked = 0;
+
+                var availableControllers = new List<string>();
+                var flagSControllers = new List<string>();
+                var outOfShiftControllers = new List<string>();
+                var manuallyLockedControllers = new List<(string controller, string sector)>();
+
+                foreach (var controllerCode in controllers)
+                {
+                    int controllerIndex = controllers.IndexOf(controllerCode);
+                    var controller = controllerInfo[controllerCode];
+
+                    // Provera Flag S
+                    bool isFlagS = IsFlagS(controllerCode, slotTime, inicijalniRaspored);
+                    if (isFlagS)
+                    {
+                        flagSCount++;
+                        flagSControllers.Add(controllerCode);
+                        continue;
+                    }
+
+                    // Provera shift-a
+                    bool inShift = IsInShift(controller, slotTime, t, timeSlots.Count, manualAssignmentsByController, controllerIndex);
+                    if (!inShift)
+                    {
+                        outOfShiftCount++;
+                        outOfShiftControllers.Add(controllerCode);
+                        continue;
+                    }
+
+                    // Provera manuelne dodele
+                    if (HasManualAssignment(controllerIndex, t, manualAssignmentsByController))
+                    {
+                        string manualSector = GetManualAssignment(controllerIndex, t, manualAssignmentsByController)!;
+                        manuallyLocked++;
+                        manuallyLockedControllers.Add((controllerCode, manualSector));
+
+                        // Proveri da li je manuelna dodela u required sectorima
+                        if (!required.Contains(manualSector) && manualSector != "break" && !NON_OPERATIONAL_SECTORS.Contains(manualSector))
+                        {
+                            _logger.LogError($"  ⚠️ PROBLEM: {controllerCode} manually locked to '{manualSector}' which is NOT in required sectors!");
+                        }
+                        continue;
+                    }
+
+                    // Kontrolor je dostupan
+                    totalAvailable++;
+                    string type = controller.IsShiftLeader ? "SS" : controller.IsSupervisor ? "SUP" : controller.IsFMP ? "FMP" : "REG";
+                    availableControllers.Add($"{controllerCode}({type})");
+                }
+
+                _logger.LogError($"Available: {totalAvailable}, Required: {required.Count}");
+                _logger.LogError($"  - Flag S: {flagSCount} [{string.Join(", ", flagSControllers)}]");
+                _logger.LogError($"  - Out of shift: {outOfShiftCount} [{string.Join(", ", outOfShiftControllers)}]");
+                _logger.LogError($"  - Manually locked: {manuallyLocked}");
+
+                if (manuallyLockedControllers.Count > 0)
+                {
+                    foreach (var (ctrl, sec) in manuallyLockedControllers)
+                    {
+                        _logger.LogError($"      {ctrl} -> {sec}");
+                    }
+                }
+
+                if (availableControllers.Count > 0)
+                {
+                    _logger.LogError($"  - Free controllers: {string.Join(", ", availableControllers)}");
+                }
+
+                // KRITIČNA PROVERA
+                if (totalAvailable < required.Count)
+                {
+                    int shortage = required.Count - totalAvailable;
+                    _logger.LogError($"  🚨 SHORTAGE: {shortage} controllers missing!");
+
+                    // Proveri koje sektore manuelne dodele pokrivaju
+                    var manuallyAssignedSectors = manuallyLockedControllers
+                        .Where(x => required.Contains(x.sector))
+                        .Select(x => x.sector)
+                        .ToList();
+
+                    var uncoveredSectors = required.Except(manuallyAssignedSectors).ToList();
+
+                    if (uncoveredSectors.Count > 0)
+                    {
+                        _logger.LogError($"  Uncovered sectors: {string.Join(", ", uncoveredSectors)}");
+                    }
+                }
+            }
+
+            // Provera manuelnih dodela i kontinuiteta
+            _logger.LogError("\n=== MANUAL ASSIGNMENTS CONTINUITY CHECK ===");
+            foreach (var (controllerIndex, assignments) in manualAssignmentsByController)
+            {
+                string controllerCode = controllers[controllerIndex];
+                var sortedSlots = assignments.OrderBy(a => a.Key).ToList();
+
+                for (int i = 1; i < sortedSlots.Count; i++)
+                {
+                    int prevSlot = sortedSlots[i - 1].Key;
+                    int currSlot = sortedSlots[i].Key;
+                    string prevSector = sortedSlots[i - 1].Value;
+                    string currSector = sortedSlots[i].Value;
+
+                    // Proveri da li su slotovi uzastopni
+                    if (currSlot == prevSlot + 1)
+                    {
+                        // Proveri kontinuitet
+                        if (prevSector != "break" && currSector != "break")
+                        {
+                            string prevBase = prevSector.Length >= 2 ? prevSector.Substring(0, 2) : prevSector;
+                            string currBase = currSector.Length >= 2 ? currSector.Substring(0, 2) : currSector;
+
+                            if (prevBase != currBase)
+                            {
+                                _logger.LogError($"🚨 CONTINUITY VIOLATION: {controllerCode} " +
+                                               $"slot {prevSlot}({timeSlots[prevSlot]:HH:mm}):{prevSector} -> " +
+                                               $"slot {currSlot}({timeSlots[currSlot]:HH:mm}):{currSector}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            _logger.LogError("=== END ENHANCED ANALYSIS ===\n");
         }
 
         private OptimizationStatistics CalculateStatistics(CpSolver solver, Dictionary<(int, int, string), IntVar> assignments, CpSolverStatus status, List<string> controllers,
