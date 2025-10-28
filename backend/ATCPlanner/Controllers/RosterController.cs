@@ -73,6 +73,19 @@ namespace ATCPlanner.Controllers
                     return BadRequest("Failed to create time slots");
                 }
 
+                var validationErrors = ValidateManualAssignments(inicijalniRaspored, konfiguracije, timeSlots);
+
+                if (validationErrors.Any())
+                {
+                    _logger.LogWarning($"Manual assignment validation failed: {string.Join("; ", validationErrors)}");
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Manualne dodele sadrže sektore koji ne postoje u konfiguraciji",
+                        errors = validationErrors
+                    });
+                }
+
                 // Postavka trajanja slota (iz konfiguracije ili podrazumevano 30 minuta)
                 int slotDuration = 30; // Podrazumevano 30 minuta
                 _rosterOptimizer.SetSlotDuration(slotDuration);
@@ -374,6 +387,27 @@ namespace ATCPlanner.Controllers
                 var konfiguracije = await _dbHandler.LoadTimeSlotConfigurationsAsync(datumStart.Value, datumEnd.Value);
                 var inicijalniRaspored = await _dbHandler.FillByDatumAsync(datumStart.Value, datumEnd.Value);
                 var timeSlots = TimeUtils.CreateTimeSlots(datumStart.Value, datumEnd.Value);
+
+                try
+                {
+
+                    var validationErrors = ValidateManualAssignments(inicijalniRaspored, konfiguracije, timeSlots);
+                    if (validationErrors.Any())
+                    {
+                        _logger.LogWarning($"Manual assignment validation failed: {string.Join("; ", validationErrors)}");
+                        return BadRequest(new
+                        {
+                            success = false,
+                            message = "Manualne dodele sadrže sektore koji ne postoje u konfiguraciji",
+                            errors = validationErrors
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error during manual assignments validation");
+                    return StatusCode(500, $"Validation error: {ex.Message}");
+                }
 
                 if (konfiguracije == null || inicijalniRaspored == null || timeSlots == null || !timeSlots.Any())
                 {
@@ -678,6 +712,104 @@ namespace ATCPlanner.Controllers
                 _logger.LogError(ex, $"Error loading run {runId} in session {sessionId}");
                 return StatusCode(500, "An error occurred while loading optimization run");
             }
+        }
+
+        private List<string> ValidateManualAssignments(
+            DataTable inicijalniRaspored,
+            DataTable konfiguracije,
+            List<DateTime> timeSlots)
+        {
+            var errors = new List<string>();
+
+            try
+            {
+                if (inicijalniRaspored == null || konfiguracije == null || timeSlots == null)
+                {
+                    _logger.LogWarning("One or more parameters are null in ValidateManualAssignments");
+                    return errors;
+                }
+
+                // Grupiši konfiguracije po vremenu i sektoru
+                var validSectorsByTime = new Dictionary<DateTime, HashSet<string>>();
+
+                foreach (DataRow config in konfiguracije.Rows)
+                {
+                    DateTime datumOd = DateTime.Parse(config["datumOd"].ToString());
+                    DateTime datumDo = DateTime.Parse(config["datumDo"].ToString());
+                    string sektor = config["sektor"]?.ToString();
+
+                    if (string.IsNullOrEmpty(sektor))
+                        continue;
+
+                    foreach (var timeSlot in timeSlots)
+                    {
+                        if (timeSlot >= datumOd && timeSlot < datumDo)
+                        {
+                            if (!validSectorsByTime.ContainsKey(timeSlot))
+                                validSectorsByTime[timeSlot] = new HashSet<string>();
+
+                            validSectorsByTime[timeSlot].Add(sektor);
+                        }
+                    }
+                }
+
+                _logger.LogInformation($"Loaded {validSectorsByTime.Count} time slots with sector configurations");
+
+                // Proveri ručne dodele (isto kao u tvom kodu - gde sektor nije prazan)
+                int manualAssignmentCount = 0;
+
+                foreach (DataRow row in inicijalniRaspored.Rows)
+                {
+                    // Proveri da li je ručna dodela (ima sektor)
+                    string sectorName = row["Sektor"]?.ToString();
+
+                    if (string.IsNullOrEmpty(sectorName))
+                        continue;
+
+                    manualAssignmentCount++;
+
+                    string controllerId = row["Sifra"]?.ToString();
+                    DateTime assignmentTime;
+
+                    // Pokušaj sa DatumOd kolonom
+                    try
+                    {
+                        assignmentTime = DateTime.Parse(row["DatumOd"].ToString());
+                    }
+                    catch
+                    {
+                        _logger.LogWarning($"Cannot parse DatumOd for assignment: {controllerId} - {sectorName}");
+                        continue;
+                    }
+
+                    // Proveri da li vreme postoji u timeSlots
+                    if (!timeSlots.Contains(assignmentTime))
+                    {
+                        errors.Add($"Kontrolor {controllerId}: Vreme {assignmentTime:HH:mm} nije validno za odabranu smenu");
+                        continue;
+                    }
+
+                    // Proveri da li sektor postoji u konfiguraciji za to vreme
+                    if (!validSectorsByTime.ContainsKey(assignmentTime))
+                    {
+                        errors.Add($"Kontrolor {controllerId}: Nema konfiguracije za vreme {assignmentTime:HH:mm}");
+                    }
+                    else if (!validSectorsByTime[assignmentTime].Contains(sectorName))
+                    {
+                        var availableSectors = string.Join(", ", validSectorsByTime[assignmentTime].OrderBy(s => s));
+                        errors.Add($"Kontrolor {controllerId}: Sektor '{sectorName}' ne postoji u konfiguraciji za vreme {assignmentTime:HH:mm}. Dostupni sektori: {availableSectors}");
+                    }
+                }
+
+                _logger.LogInformation($"Validated {manualAssignmentCount} manual assignments, found {errors.Count} errors");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception in ValidateManualAssignments method");
+                errors.Add($"Greška pri validaciji: {ex.Message}");
+            }
+
+            return errors;
         }
     }
 
